@@ -1,0 +1,58 @@
+@import "tailwindcss";
+
+@theme {
+  --font-body: "DM Sans", sans-serif;
+  --font-display: "Bricolage Grotesque", sans-serif;
+  --color-accent: #818cf8;
+  --color-accent-dark: #6366f1;
+}
+
+@layer base {
+  * {
+    scroll-behavior: smooth;
+  }
+
+  ::selection {
+    background-color: #818cf8;
+    color: #0a0a0f;
+  }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  33% { transform: translateY(-10px) rotate(1deg); }
+  66% { transform: translateY(5px) rotate(-1deg); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
+}
+
+@keyframes glowPulse {
+  0%, 100% { text-shadow: 0 0 3px var(--glow); }
+  50% { text-shadow: 0 0 8px var(--glow), 0 0 16px var(--glow); }
+}
+
+.animate-glow-pulse {
+  animation: glowPulse 2s ease-in-out infinite;
+}
+
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 3s ease-in-out infinite;
+}
+
+.animate-gradient {
+  background-size: 200% 200%;
+  animation: gradient-shift 8s ease infinite;
+}

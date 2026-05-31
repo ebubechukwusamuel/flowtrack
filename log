@@ -1,0 +1,388 @@
+▲ Next.js 16.2.6 (Turbopack)
+- Local:         http://localhost:4444
+- Network:       http://172.24.208.1:4444
+- Environments: .env
+✓ Ready in 5.5s
+
+○ Compiling /projects/[id] ...
+⨯ Error: No database host or connection string was set, and key parameters have default values (host: localhost, user: Ebube, db: Ebube, password: null). Is an environment variable missing? Alternatively, if you intended to connect with these parameters, please set the host to 'localhost' explicitly.
+    at <unknown> (src\generated\prisma\runtime\client.js:15:44665)
+    at xr (src\generated\prisma\runtime\client.js:15:26627)
+    at #u (src\generated\prisma\runtime\client.js:15:47965)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:44634)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:43755)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:45076)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:46296)
+    at e.run (src\generated\prisma\runtime\client.js:15:43346)
+    at e.execute (src\generated\prisma\runtime\client.js:61:829)
+    at jt.request (src\generated\prisma\runtime\client.js:62:2409)
+    at async Object.singleLoader (src\generated\prisma\runtime\client.js:69:6569)
+    at async zr.request (src\generated\prisma\runtime\client.js:69:7175)
+    at async a (src\generated\prisma\runtime\client.js:79:6862)
+    at async getOrCreateOrg (src\lib\org.ts:4:20)
+    at async DashboardLayout (src\app\(dashboard)\layout.tsx:11:22)
+  13 | ...
+  14 | ...
+> 15 | ...wait this.#u(s,r.queryable,()=>r.queryable.queryRaw(ri(s)).catch(l=>t.args.type==="rawS...
+     |                                               ^
+  16 | ...
+  17 | ...
+  18 | ... {
+  clientVersion: '7.8.0',
+  digest: '1663973403'
+}
+⨯ Error: No database host or connection string was set, and key parameters have default values (host: localhost, user: Ebube, db: Ebube, password: null). Is an environment variable missing? Alternatively, if you intended to connect with these parameters, please set the host to 'localhost' explicitly.
+    at <unknown> (src\generated\prisma\runtime\client.js:15:44665)
+    at xr (src\generated\prisma\runtime\client.js:15:26627)
+    at #u (src\generated\prisma\runtime\client.js:15:47965)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:44634)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:43755)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:45076)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:46296)
+    at e.run (src\generated\prisma\runtime\client.js:15:43346)
+    at e.execute (src\generated\prisma\runtime\client.js:61:829)
+    at jt.request (src\generated\prisma\runtime\client.js:62:2409)
+    at async Object.singleLoader (src\generated\prisma\runtime\client.js:69:6569)
+    at async zr.request (src\generated\prisma\runtime\client.js:69:7175)
+    at async a (src\generated\prisma\runtime\client.js:79:6862)
+    at async getOrCreateOrg (src\lib\org.ts:4:20)
+    at async ProjectPage (src\app\(dashboard)\projects\[id]\page.tsx:12:22)
+  13 | ...
+  14 | ...
+> 15 | ...wait this.#u(s,r.queryable,()=>r.queryable.queryRaw(ri(s)).catch(l=>t.args.type==="rawS...
+     |                                               ^
+  16 | ...
+  17 | ...
+  18 | ... {
+  clientVersion: '7.8.0',
+  digest: '2282637700'
+}
+⨯ Error: No database host or connection string was set, and key parameters have default values (host: localhost, user: Ebube, db: Ebube, password: null). Is an environment variable missing? Alternatively, if you intended to connect with these parameters, please set the host to 'localhost' explicitly.
+    at <unknown> (src\generated\prisma\runtime\client.js:15:44665)
+    at xr (src\generated\prisma\runtime\client.js:15:26627)
+    at #u (src\generated\prisma\runtime\client.js:15:47965)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:44634)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:43755)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:45076)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:46296)
+    at e.run (src\generated\prisma\runtime\client.js:15:43346)
+    at e.execute (src\generated\prisma\runtime\client.js:61:829)
+    at jt.request (src\generated\prisma\runtime\client.js:62:2409)
+    at async Object.singleLoader (src\generated\prisma\runtime\client.js:69:6569)
+    at async zr.request (src\generated\prisma\runtime\client.js:69:7175)
+    at async a (src\generated\prisma\runtime\client.js:79:6862)
+    at async getOrCreateOrg (src\lib\org.ts:4:20)
+    at async DashboardLayout (src\app\(dashboard)\layout.tsx:11:22)
+  13 | ...
+  14 | ...
+> 15 | ...wait this.#u(s,r.queryable,()=>r.queryable.queryRaw(ri(s)).catch(l=>t.args.type==="rawS...
+     |                                               ^
+  16 | ...
+  17 | ...
+  18 | ... {
+  clientVersion: '7.8.0',
+  digest: '1663973403'
+}
+⨯ Error: No database host or connection string was set, and key parameters have default values (host: localhost, user: Ebube, db: Ebube, password: null). Is an environment variable missing? Alternatively, if you intended to connect with these parameters, please set the host to 'localhost' explicitly.
+    at <unknown> (src\generated\prisma\runtime\client.js:15:44665)
+    at xr (src\generated\prisma\runtime\client.js:15:26627)
+    at #u (src\generated\prisma\runtime\client.js:15:47965)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:44634)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:43755)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:45076)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:46296)
+    at e.run (src\generated\prisma\runtime\client.js:15:43346)
+    at e.execute (src\generated\prisma\runtime\client.js:61:829)
+    at jt.request (src\generated\prisma\runtime\client.js:62:2409)
+    at async Object.singleLoader (src\generated\prisma\runtime\client.js:69:6569)
+    at async zr.request (src\generated\prisma\runtime\client.js:69:7175)
+    at async a (src\generated\prisma\runtime\client.js:79:6862)
+    at async getOrCreateOrg (src\lib\org.ts:4:20)
+    at async ProjectPage (src\app\(dashboard)\projects\[id]\page.tsx:12:22)
+  13 | ...
+  14 | ...
+> 15 | ...wait this.#u(s,r.queryable,()=>r.queryable.queryRaw(ri(s)).catch(l=>t.args.type==="rawS...
+     |                                               ^
+  16 | ...
+  17 | ...
+  18 | ... {
+  clientVersion: '7.8.0',
+  digest: '2282637700'
+}
+ GET /projects/cmpt0wjld001b8wv26bk5id7x 500 in 26.3s (next.js: 20.2s, application-code: 6.1s)
+ GET / 307 in 682ms (next.js: 206ms, application-code: 477ms)
+[browser] Uncaught Error: No database host or connection string was set, and key parameters have default values (host: localhost, user: Ebube, db: Ebube, password: null). Is an environment variable missing? Alternatively, if you intended to connect with these parameters, please set the host to 'localhost' explicitly.
+    at <anonymous> (src\generated\prisma\runtime\client.js:15:44665)
+    at xr (src\generated\prisma\runtime\client.js:15:26627)
+    at #u (src\generated\prisma\runtime\client.js:15:47965)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:44634)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:43755)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:45076)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:46296)
+    at e.run (src\generated\prisma\runtime\client.js:15:43346)
+    at e.execute (src\generated\prisma\runtime\client.js:61:829)
+    at jt.request (src\generated\prisma\runtime\client.js:62:2409)
+    at Object.singleLoader (src\generated\prisma\runtime\client.js:69:6569)
+    at zr.request (src\generated\prisma\runtime\client.js:69:7175)
+    at a (src\generated\prisma\runtime\client.js:79:6862)
+    at getOrCreateOrg (src\lib\org.ts:4:20)
+    at DashboardLayout (src\app\(dashboard)\layout.tsx:11:22)
+    at resolveErrorDev (file://D:/Projects/My Assistant/projects/flowtrack/.next/dev/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_0p3wegg._.js:1919:105)
+    at processFullStringRow (file://D:/Projects/My Assistant/projects/flowtrack/.next/dev/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_0p3wegg._.js:2434:29)
+    at processFullBinaryRow (file://D:/Projects/My Assistant/projects/flowtrack/.next/dev/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_0p3wegg._.js:2393:9)
+    at processBinaryChunk (file://D:/Projects/My Assistant/projects/flowtrack/.next/dev/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_0p3wegg._.js:2502:221)
+    at progress (file://D:/Projects/My Assistant/projects/flowtrack/.next/dev/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_0p3wegg._.js:2689:13)
+  13 | ...
+  14 | ...
+> 15 | ...wait this.#u(s,r.queryable,()=>r.queryable.queryRaw(ri(s)).catch(l=>t.args.type==="rawS...
+     |                                               ^
+  16 | ...
+  17 | ...
+  18 | ...
+○ Compiling /dashboard ...
+⨯ Error: No database host or connection string was set, and key parameters have default values (host: localhost, user: Ebube, db: Ebube, password: null). Is an environment variable missing? Alternatively, if you intended to connect with these parameters, please set the host to 'localhost' explicitly.
+    at <unknown> (src\generated\prisma\runtime\client.js:15:44665)
+    at xr (src\generated\prisma\runtime\client.js:15:26627)
+    at #u (src\generated\prisma\runtime\client.js:15:47965)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:44634)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:43755)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:45076)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:46296)
+    at e.run (src\generated\prisma\runtime\client.js:15:43346)
+    at e.execute (src\generated\prisma\runtime\client.js:61:829)
+    at jt.request (src\generated\prisma\runtime\client.js:62:2409)
+    at async Object.singleLoader (src\generated\prisma\runtime\client.js:69:6569)
+    at async zr.request (src\generated\prisma\runtime\client.js:69:7175)
+    at async a (src\generated\prisma\runtime\client.js:79:6862)
+    at async getOrCreateOrg (src\lib\org.ts:4:20)
+    at async DashboardLayout (src\app\(dashboard)\layout.tsx:11:22)
+  13 | ...
+  14 | ...
+> 15 | ...wait this.#u(s,r.queryable,()=>r.queryable.queryRaw(ri(s)).catch(l=>t.args.type==="rawS...
+     |                                               ^
+  16 | ...
+  17 | ...
+  18 | ... {
+  clientVersion: '7.8.0',
+  digest: '1663973403'
+}
+⨯ Error: No database host or connection string was set, and key parameters have default values (host: localhost, user: Ebube, db: Ebube, password: null). Is an environment variable missing? Alternatively, if you intended to connect with these parameters, please set the host to 'localhost' explicitly.
+    at <unknown> (src\generated\prisma\runtime\client.js:15:44665)
+    at xr (src\generated\prisma\runtime\client.js:15:26627)
+    at #u (src\generated\prisma\runtime\client.js:15:47965)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:44634)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:43755)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:45076)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:46296)
+    at e.run (src\generated\prisma\runtime\client.js:15:43346)
+    at e.execute (src\generated\prisma\runtime\client.js:61:829)
+    at jt.request (src\generated\prisma\runtime\client.js:62:2409)
+    at async Object.singleLoader (src\generated\prisma\runtime\client.js:69:6569)
+    at async zr.request (src\generated\prisma\runtime\client.js:69:7175)
+    at async a (src\generated\prisma\runtime\client.js:79:6862)
+    at async getOrCreateOrg (src\lib\org.ts:4:20)
+    at async DashboardPage (src\app\(dashboard)\dashboard\page.tsx:12:22)
+  13 | ...
+  14 | ...
+> 15 | ...wait this.#u(s,r.queryable,()=>r.queryable.queryRaw(ri(s)).catch(l=>t.args.type==="rawS...
+     |                                               ^
+  16 | ...
+  17 | ...
+  18 | ... {
+  clientVersion: '7.8.0',
+  digest: '1256972640'
+}
+ GET /dashboard 500 in 23.5s (next.js: 23.0s, application-code: 447ms)
+✓ Finished filesystem cache database compaction in 54s
+[browser] Uncaught Error: No database host or connection string was set, and key parameters have default values (host: localhost, user: Ebube, db: Ebube, password: null). Is an environment variable missing? Alternatively, if you intended to connect with these parameters, please set the host to 'localhost' explicitly.
+    at <anonymous> (src\generated\prisma\runtime\client.js:15:44665)
+    at xr (src\generated\prisma\runtime\client.js:15:26627)
+    at #u (src\generated\prisma\runtime\client.js:15:47965)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:44634)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:43755)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:45076)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:46296)
+    at e.run (src\generated\prisma\runtime\client.js:15:43346)
+    at e.execute (src\generated\prisma\runtime\client.js:61:829)
+    at jt.request (src\generated\prisma\runtime\client.js:62:2409)
+    at Object.singleLoader (src\generated\prisma\runtime\client.js:69:6569)
+    at zr.request (src\generated\prisma\runtime\client.js:69:7175)
+    at a (src\generated\prisma\runtime\client.js:79:6862)
+    at getOrCreateOrg (src\lib\org.ts:4:20)
+    at DashboardLayout (src\app\(dashboard)\layout.tsx:11:22)
+    at resolveErrorDev (file://D:/Projects/My Assistant/projects/flowtrack/.next/dev/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_0p3wegg._.js:1919:105)
+    at processFullStringRow (file://D:/Projects/My Assistant/projects/flowtrack/.next/dev/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_0p3wegg._.js:2434:29)
+    at processFullBinaryRow (file://D:/Projects/My Assistant/projects/flowtrack/.next/dev/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_0p3wegg._.js:2393:9)
+    at processBinaryChunk (file://D:/Projects/My Assistant/projects/flowtrack/.next/dev/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_0p3wegg._.js:2502:221)
+    at progress (file://D:/Projects/My Assistant/projects/flowtrack/.next/dev/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_0p3wegg._.js:2689:13)
+  13 | ...
+  14 | ...
+> 15 | ...wait this.#u(s,r.queryable,()=>r.queryable.queryRaw(ri(s)).catch(l=>t.args.type==="rawS...
+     |                                               ^
+  16 | ...
+  17 | ...
+  18 | ...
+⨯ Error: No database host or connection string was set, and key parameters have default values (host: localhost, user: Ebube, db: Ebube, password: null). Is an environment variable missing? Alternatively, if you intended to connect with these parameters, please set the host to 'localhost' explicitly.
+    at <unknown> (src\generated\prisma\runtime\client.js:15:44665)
+    at xr (src\generated\prisma\runtime\client.js:15:26627)
+    at #u (src\generated\prisma\runtime\client.js:15:47965)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:44634)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:43755)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:45076)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:46296)
+    at e.run (src\generated\prisma\runtime\client.js:15:43346)
+    at e.execute (src\generated\prisma\runtime\client.js:61:829)
+    at jt.request (src\generated\prisma\runtime\client.js:62:2409)
+    at async Object.singleLoader (src\generated\prisma\runtime\client.js:69:6569)
+    at async zr.request (src\generated\prisma\runtime\client.js:69:7175)
+    at async a (src\generated\prisma\runtime\client.js:79:6862)
+    at async getOrCreateOrg (src\lib\org.ts:4:20)
+    at async DashboardLayout (src\app\(dashboard)\layout.tsx:11:22)
+  13 | ...
+  14 | ...
+> 15 | ...wait this.#u(s,r.queryable,()=>r.queryable.queryRaw(ri(s)).catch(l=>t.args.type==="rawS...
+     |                                               ^
+  16 | ...
+  17 | ...
+  18 | ... {
+  clientVersion: '7.8.0',
+  digest: '1663973403'
+}
+⨯ Error: No database host or connection string was set, and key parameters have default values (host: localhost, user: Ebube, db: Ebube, password: null). Is an environment variable missing? Alternatively, if you intended to connect with these parameters, please set the host to 'localhost' explicitly.
+    at <unknown> (src\generated\prisma\runtime\client.js:15:44665)
+    at xr (src\generated\prisma\runtime\client.js:15:26627)
+    at #u (src\generated\prisma\runtime\client.js:15:47965)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:44634)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:43755)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:45076)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:46296)
+    at e.run (src\generated\prisma\runtime\client.js:15:43346)
+    at e.execute (src\generated\prisma\runtime\client.js:61:829)
+    at jt.request (src\generated\prisma\runtime\client.js:62:2409)
+    at async Object.singleLoader (src\generated\prisma\runtime\client.js:69:6569)
+    at async zr.request (src\generated\prisma\runtime\client.js:69:7175)
+    at async a (src\generated\prisma\runtime\client.js:79:6862)
+    at async getOrCreateOrg (src\lib\org.ts:4:20)
+    at async DashboardPage (src\app\(dashboard)\dashboard\page.tsx:12:22)
+  13 | ...
+  14 | ...
+> 15 | ...wait this.#u(s,r.queryable,()=>r.queryable.queryRaw(ri(s)).catch(l=>t.args.type==="rawS...
+     |                                               ^
+  16 | ...
+  17 | ...
+  18 | ... {
+  clientVersion: '7.8.0',
+  digest: '1256972640'
+}
+ GET /dashboard 500 in 550ms (next.js: 23ms, application-code: 528ms)
+[browser] Uncaught Error: No database host or connection string was set, and key parameters have default values (host: localhost, user: Ebube, db: Ebube, password: null). Is an environment variable missing? Alternatively, if you intended to connect with these parameters, please set the host to 'localhost' explicitly.
+    at <anonymous> (src\generated\prisma\runtime\client.js:15:44665)
+    at xr (src\generated\prisma\runtime\client.js:15:26627)
+    at #u (src\generated\prisma\runtime\client.js:15:47965)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:44634)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:43755)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:45076)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:46296)
+    at e.run (src\generated\prisma\runtime\client.js:15:43346)
+    at e.execute (src\generated\prisma\runtime\client.js:61:829)
+    at jt.request (src\generated\prisma\runtime\client.js:62:2409)
+    at Object.singleLoader (src\generated\prisma\runtime\client.js:69:6569)
+    at zr.request (src\generated\prisma\runtime\client.js:69:7175)
+    at a (src\generated\prisma\runtime\client.js:79:6862)
+    at getOrCreateOrg (src\lib\org.ts:4:20)
+    at DashboardLayout (src\app\(dashboard)\layout.tsx:11:22)
+    at resolveErrorDev (file://D:/Projects/My Assistant/projects/flowtrack/.next/dev/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_0p3wegg._.js:1919:105)
+    at processFullStringRow (file://D:/Projects/My Assistant/projects/flowtrack/.next/dev/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_0p3wegg._.js:2434:29)
+    at processFullBinaryRow (file://D:/Projects/My Assistant/projects/flowtrack/.next/dev/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_0p3wegg._.js:2393:9)
+    at processBinaryChunk (file://D:/Projects/My Assistant/projects/flowtrack/.next/dev/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_0p3wegg._.js:2502:221)
+    at progress (file://D:/Projects/My Assistant/projects/flowtrack/.next/dev/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_0p3wegg._.js:2689:13)
+  13 | ...
+  14 | ...
+> 15 | ...wait this.#u(s,r.queryable,()=>r.queryable.queryRaw(ri(s)).catch(l=>t.args.type==="rawS...
+     |                                               ^
+  16 | ...
+  17 | ...
+  18 | ...
+⨯ Error: No database host or connection string was set, and key parameters have default values (host: localhost, user: Ebube, db: Ebube, password: null). Is an environment variable missing? Alternatively, if you intended to connect with these parameters, please set the host to 'localhost' explicitly.
+    at <unknown> (src\generated\prisma\runtime\client.js:15:44665)
+    at xr (src\generated\prisma\runtime\client.js:15:26627)
+    at #u (src\generated\prisma\runtime\client.js:15:47965)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:44634)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:43755)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:45076)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:46296)
+    at e.run (src\generated\prisma\runtime\client.js:15:43346)
+    at e.execute (src\generated\prisma\runtime\client.js:61:829)
+    at jt.request (src\generated\prisma\runtime\client.js:62:2409)
+    at async Object.singleLoader (src\generated\prisma\runtime\client.js:69:6569)
+    at async zr.request (src\generated\prisma\runtime\client.js:69:7175)
+    at async a (src\generated\prisma\runtime\client.js:79:6862)
+    at async getOrCreateOrg (src\lib\org.ts:4:20)
+    at async DashboardLayout (src\app\(dashboard)\layout.tsx:11:22)
+  13 | ...
+  14 | ...
+> 15 | ...wait this.#u(s,r.queryable,()=>r.queryable.queryRaw(ri(s)).catch(l=>t.args.type==="rawS...
+     |                                               ^
+  16 | ...
+  17 | ...
+  18 | ... {
+  clientVersion: '7.8.0',
+  digest: '1663973403'
+}
+⨯ Error: No database host or connection string was set, and key parameters have default values (host: localhost, user: Ebube, db: Ebube, password: null). Is an environment variable missing? Alternatively, if you intended to connect with these parameters, please set the host to 'localhost' explicitly.
+    at <unknown> (src\generated\prisma\runtime\client.js:15:44665)
+    at xr (src\generated\prisma\runtime\client.js:15:26627)
+    at #u (src\generated\prisma\runtime\client.js:15:47965)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:44634)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:43755)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:45076)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:46296)
+    at e.run (src\generated\prisma\runtime\client.js:15:43346)
+    at e.execute (src\generated\prisma\runtime\client.js:61:829)
+    at jt.request (src\generated\prisma\runtime\client.js:62:2409)
+    at async Object.singleLoader (src\generated\prisma\runtime\client.js:69:6569)
+    at async zr.request (src\generated\prisma\runtime\client.js:69:7175)
+    at async a (src\generated\prisma\runtime\client.js:79:6862)
+    at async getOrCreateOrg (src\lib\org.ts:4:20)
+    at async DashboardPage (src\app\(dashboard)\dashboard\page.tsx:12:22)
+  13 | ...
+  14 | ...
+> 15 | ...wait this.#u(s,r.queryable,()=>r.queryable.queryRaw(ri(s)).catch(l=>t.args.type==="rawS...
+     |                                               ^
+  16 | ...
+  17 | ...
+  18 | ... {
+  clientVersion: '7.8.0',
+  digest: '1256972640'
+}
+ GET /dashboard 500 in 1005ms (next.js: 16ms, application-code: 989ms)
+[browser] Uncaught Error: No database host or connection string was set, and key parameters have default values (host: localhost, user: Ebube, db: Ebube, password: null). Is an environment variable missing? Alternatively, if you intended to connect with these parameters, please set the host to 'localhost' explicitly.
+    at <anonymous> (src\generated\prisma\runtime\client.js:15:44665)
+    at xr (src\generated\prisma\runtime\client.js:15:26627)
+    at #u (src\generated\prisma\runtime\client.js:15:47965)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:44634)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:43755)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:45076)
+    at e.interpretNode (src\generated\prisma\runtime\client.js:15:46296)
+    at e.run (src\generated\prisma\runtime\client.js:15:43346)
+    at e.execute (src\generated\prisma\runtime\client.js:61:829)
+    at jt.request (src\generated\prisma\runtime\client.js:62:2409)
+    at Object.singleLoader (src\generated\prisma\runtime\client.js:69:6569)
+    at zr.request (src\generated\prisma\runtime\client.js:69:7175)
+    at a (src\generated\prisma\runtime\client.js:79:6862)
+    at getOrCreateOrg (src\lib\org.ts:4:20)
+    at DashboardLayout (src\app\(dashboard)\layout.tsx:11:22)
+    at resolveErrorDev (file://D:/Projects/My Assistant/projects/flowtrack/.next/dev/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_0p3wegg._.js:1919:105)
+    at processFullStringRow (file://D:/Projects/My Assistant/projects/flowtrack/.next/dev/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_0p3wegg._.js:2434:29)
+    at processFullBinaryRow (file://D:/Projects/My Assistant/projects/flowtrack/.next/dev/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_0p3wegg._.js:2393:9)
+    at processBinaryChunk (file://D:/Projects/My Assistant/projects/flowtrack/.next/dev/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_0p3wegg._.js:2502:221)
+    at progress (file://D:/Projects/My Assistant/projects/flowtrack/.next/dev/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_0p3wegg._.js:2689:13)
+  13 | ...
+  14 | ...
+> 15 | ...wait this.#u(s,r.queryable,()=>r.queryable.queryRaw(ri(s)).catch(l=>t.args.type==="rawS...
+     |                                               ^
+  16 | ...
+  17 | ...
+  18 | ...
+ GET / 307 in 417ms (next.js: 54ms, application-code: 363ms)
+ GET /projects/cmpt0wjld001b8wv26bk5id7x 200 in 6.7min (next.js: 311ms, application-code: 6.7min)
