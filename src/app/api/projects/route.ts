@@ -8,6 +8,7 @@ export async function POST(req: Request) {
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const membership = await getOrCreateOrg(session.user.id, session.user.name, session.user.email)
+  if (membership.role !== "admin") return NextResponse.json({ error: "Only admins can create projects" }, { status: 403 })
 
   const { name, description, color } = await req.json()
   if (!name?.trim()) return NextResponse.json({ error: "Name required" }, { status: 400 })

@@ -10,6 +10,7 @@ export default async function ProjectsPage() {
   if (!session?.user?.id) redirect("/login")
 
   const membership = await getOrCreateOrg(session.user.id, session.user.name, session.user.email)
+  const isAdmin = membership.role === "admin"
 
   const projects = await prisma.project.findMany({
     where: { organizationId: membership.organization.id },
@@ -24,25 +25,29 @@ export default async function ProjectsPage() {
           <h1 className="text-2xl font-bold tracking-tight">Projects</h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">{projects.length} total</p>
         </div>
-        <Link
-          href="/projects/new"
-          className="inline-flex items-center gap-2 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
-        >
-          <Plus className="h-4 w-4" />
-          New Project
-        </Link>
+        {isAdmin && (
+          <Link
+            href="/projects/new"
+            className="inline-flex items-center gap-2 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+          >
+            <Plus className="h-4 w-4" />
+            New Project
+          </Link>
+        )}
       </div>
 
       {projects.length === 0 ? (
         <div className="rounded-xl border border-dashed border-zinc-300 p-12 text-center dark:border-zinc-700">
           <FolderKanban className="mx-auto h-8 w-8 text-zinc-300 dark:text-zinc-600" />
           <p className="mt-3 text-sm text-zinc-500 dark:text-zinc-400">No projects yet</p>
-          <Link
-            href="/projects/new"
-            className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-zinc-900 underline underline-offset-4 dark:text-zinc-100"
-          >
-            Create your first project
-          </Link>
+          {isAdmin && (
+            <Link
+              href="/projects/new"
+              className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-zinc-900 underline underline-offset-4 dark:text-zinc-100"
+            >
+              Create your first project
+            </Link>
+          )}
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
