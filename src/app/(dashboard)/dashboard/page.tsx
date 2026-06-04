@@ -188,7 +188,7 @@ export default async function DashboardPage() {
       user={{
         name: session.user.name || "User",
         email: session.user.email || "",
-        image: session.user.image ?? null,
+        image: members.find((m) => m.user.id === userId)?.user.image ?? null,
       }}
       tasks={tasks.map((t) => ({
         id: t.id,
