@@ -1,10 +1,11 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react"
-import { motion } from "framer-motion"
+import { motion, AnimatePresence } from "framer-motion"
 import {
   MessageSquare, Send, Search, ArrowLeft, LoaderPinwheel, User, Users,
   Paperclip, Image, File, Video, Mic, X, FileText, Download,
+  Check, Pencil, Trash2, Ellipsis,
 } from "lucide-react"
 import { VoiceRecorder } from "@/components/voice-recorder"
 
@@ -27,6 +28,8 @@ interface ChatMessage {
   id: string
   content: string | null
   createdAt: string
+  editedAt: string | null
+  deletedAt: string | null
   senderId: string
   sender: { id: string; name: string | null; image: string | null }
   attachments: Attachment[]
@@ -35,7 +38,7 @@ interface ChatMessage {
 interface ChatInfo {
   id: string
   participants: { user: Member }[]
-  messages: { content: string | null; createdAt: string; sender: { id: string; name: string | null }; attachments?: { id: string; type: string; name: string }[] }[]
+  messages: { content: string | null; createdAt: string; sender: { id: string; name: string | null }; attachments?: { id: string; type: string; name: string }[]; deletedAt?: string | null }[]
   updatedAt: string
 }
 
@@ -64,22 +67,29 @@ function getFileIcon(type: string) {
   return <File className="h-4 w-4" />
 }
 
-function isImage(type: string, name: string): boolean {
-  if (type === "image") return true
+function isImage(name: string): boolean {
   const ext = name.split(".").pop()?.toLowerCase()
   return ["jpg", "jpeg", "png", "gif", "webp", "svg", "bmp"].includes(ext || "")
 }
 
-function isVideo(type: string, name: string): boolean {
-  if (type === "video") return true
+function isVideo(name: string): boolean {
   const ext = name.split(".").pop()?.toLowerCase()
   return ["mp4", "webm", "mov", "avi", "mkv"].includes(ext || "")
 }
 
-function isAudio(type: string, name: string): boolean {
-  if (type === "audio") return true
+function isAudio(name: string): boolean {
   const ext = name.split(".").pop()?.toLowerCase()
   return ["mp3", "wav", "ogg", "webm", "m4a"].includes(ext || "")
+}
+
+function AvatarImg({ src, name, className }: { src: string | null | undefined; name: string | null | undefined; className?: string }) {
+  return src ? (
+    <img src={src} alt="" className={`object-cover ${className || ""}`} />
+  ) : (
+    <span className={`flex items-center justify-center ${className || ""}`}>
+      {(name || "?")[0].toUpperCase()}
+    </span>
+  )
 }
 
 export function ChatClient({ userId }: { userId: string }) {
@@ -92,13 +102,28 @@ export function ChatClient({ userId }: { userId: string }) {
   const [members, setMembers] = useState<Member[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [pendingAttachments, setPendingAttachments] = useState<{ file: File; dataUrl: string }[]>([])
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
+  const [editText, setEditText] = useState("")
+  const [menuMessageId, setMenuMessageId] = useState<string | null>(null)
+  const [menuPos, setMenuPos] = useState({ x: 0, y: 0 })
   const fileInputRef = useRef<HTMLInputElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const memberBarRef = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     Promise.all([fetchChats(), fetchMembers()]).finally(() => setLoading(false))
+  }, [])
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuMessageId(null)
+      }
+    }
+    document.addEventListener("mousedown", handleClick)
+    return () => document.removeEventListener("mousedown", handleClick)
   }, [])
 
   async function fetchChats() {
@@ -193,13 +218,8 @@ export function ChatClient({ userId }: { userId: string }) {
     }
 
     for (const p of pendingAttachments) {
-      const type = isImage("", p.file.name) ? "image" : isVideo("", p.file.name) ? "video" : isAudio("", p.file.name) ? "audio" : "document"
-      const dataUrl = p.dataUrl.startsWith("data:") ? p.dataUrl : await new Promise<string>((resolve) => {
-        const reader = new FileReader()
-        reader.onload = () => resolve(reader.result as string)
-        reader.readAsDataURL(p.file)
-      })
-      attachments.push({ type, name: p.file.name, data: dataUrl, size: p.file.size })
+      const type = isImage(p.file.name) ? "image" : isVideo(p.file.name) ? "video" : isAudio(p.file.name) ? "audio" : "document"
+      attachments.push({ type, name: p.file.name, data: p.dataUrl, size: p.file.size })
     }
 
     if (!input.trim() && attachments.length === 0) return
@@ -217,13 +237,52 @@ export function ChatClient({ userId }: { userId: string }) {
         body: JSON.stringify({ content: content || null, attachments }),
       })
       const data = await res.json()
-      if (res.ok && data.message) {
-        setMessages((prev) => [...prev, data.message])
-      }
+      if (res.ok && data.message) setMessages((prev) => [...prev, data.message])
     } catch (e) {
       console.error("[SEND]", e)
     }
     setSending(false)
+  }
+
+  async function handleEditMessage(messageId: string) {
+    if (!editText.trim()) return
+    try {
+      const res = await fetch(`/api/chats/${selectedChat}/messages/${messageId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: editText.trim() }),
+      })
+      const data = await res.json()
+      if (res.ok && data.message) {
+        setMessages((prev) => prev.map((m) => m.id === messageId ? data.message : m))
+        setEditingMessageId(null)
+        setEditText("")
+        setMenuMessageId(null)
+      }
+    } catch (e) {
+      console.error("[EDIT]", e)
+    }
+  }
+
+  async function handleDeleteMessage(messageId: string) {
+    try {
+      const res = await fetch(`/api/chats/${selectedChat}/messages/${messageId}`, {
+        method: "DELETE",
+      })
+      if (res.ok) {
+        setMessages((prev) => prev.map((m) => m.id === messageId ? { ...m, content: null, deletedAt: new Date().toISOString() } : m))
+        setMenuMessageId(null)
+      }
+    } catch (e) {
+      console.error("[DELETE]", e)
+    }
+  }
+
+  function handleMessageContext(e: React.MouseEvent, msg: ChatMessage) {
+    if (msg.deletedAt || msg.senderId !== userId) return
+    e.preventDefault()
+    setMenuPos({ x: e.clientX, y: e.clientY })
+    setMenuMessageId(msg.id)
   }
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -265,6 +324,7 @@ export function ChatClient({ userId }: { userId: string }) {
   const selectedChatData = chats.find((c) => c.id === selectedChat)
 
   function lastMessagePreview(msg: ChatInfo["messages"][0]): string {
+    if (msg.deletedAt) return "Message deleted"
     if (msg.content) {
       return msg.sender.id === userId ? `You: ${msg.content}` : msg.content
     }
@@ -274,6 +334,10 @@ export function ChatClient({ userId }: { userId: string }) {
       return msg.sender.id === userId ? `You sent ${label}` : `Sent ${label}`
     }
     return "No messages yet"
+  }
+
+  function isOwnMessage(msg: ChatMessage): boolean {
+    return msg.senderId === userId
   }
 
   return (
@@ -320,11 +384,7 @@ export function ChatClient({ userId }: { userId: string }) {
                   }`}
                 >
                   <div className="h-10 w-10 rounded-full bg-zinc-700 flex items-center justify-center shrink-0 text-sm text-white overflow-hidden">
-                    {m.image?.[0] === "/" || m.image?.startsWith("data:") ? (
-                      <img src={m.image} alt="" className="h-full w-full object-cover rounded-full" />
-                    ) : (
-                      <span>{(m.name || "?")[0].toUpperCase()}</span>
-                    )}
+                    <AvatarImg src={m.image} name={m.name} className="h-full w-full rounded-full" />
                   </div>
                   <div className="flex-1 min-w-0 text-left">
                     <div className="flex items-center justify-between">
@@ -371,11 +431,7 @@ export function ChatClient({ userId }: { userId: string }) {
                     <div className={`h-9 w-9 rounded-full flex items-center justify-center text-xs text-white overflow-hidden ${
                       isActive ? "ring-2 ring-[#CAFF33]" : "bg-zinc-700"
                     }`}>
-                      {m.image?.[0] === "/" || m.image?.startsWith("data:") ? (
-                        <img src={m.image} alt="" className="h-full w-full object-cover" />
-                      ) : (
-                        <span>{(m.name || "?")[0].toUpperCase()}</span>
-                      )}
+                      <AvatarImg src={m.image} name={m.name} className="h-full w-full rounded-full" />
                     </div>
                     <span className="text-[10px] text-zinc-400 truncate max-w-[56px] leading-tight text-center">
                       {m.name?.split(" ")[0] || "?"}
@@ -408,11 +464,7 @@ export function ChatClient({ userId }: { userId: string }) {
               <div className="h-9 w-9 rounded-full bg-zinc-700 flex items-center justify-center text-sm text-white overflow-hidden">
                 {selectedChatData && (() => {
                   const other = otherParticipant(selectedChatData)
-                  return other?.image?.[0] === "/" || other?.image?.startsWith("data:") ? (
-                    <img src={other.image} alt="" className="h-full w-full object-cover" />
-                  ) : (
-                    <span>{(other?.name || "?")[0].toUpperCase()}</span>
-                  )
+                  return <AvatarImg src={other?.image} name={other?.name} className="h-full w-full rounded-full" />
                 })()}
               </div>
               <div>
@@ -423,47 +475,117 @@ export function ChatClient({ userId }: { userId: string }) {
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2">
               {messages.length === 0 ? (
                 <div className="flex items-center justify-center h-full">
                   <p className="text-xs text-zinc-600">No messages yet. Say hello!</p>
                 </div>
               ) : (
                 messages.map((msg) => {
-                  const isMe = msg.senderId === userId
+                  const isMe = isOwnMessage(msg)
+                  const isDeleted = !!msg.deletedAt
+
+                  if (isDeleted) {
+                    return (
+                      <div key={msg.id} className="flex justify-center py-1">
+                        <p className="text-[11px] text-zinc-600 italic">
+                          {isMe ? "You deleted this message" : `${msg.sender.name || "Someone"} deleted this message`}
+                        </p>
+                      </div>
+                    )
+                  }
+
                   return (
                     <motion.div
                       key={msg.id}
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className={`flex ${isMe ? "justify-end" : "justify-start"}`}
+                      className={`flex ${isMe ? "justify-end" : "justify-start"} gap-2`}
                     >
-                      <div className={`max-w-[80%] space-y-1.5 ${isMe ? "items-end" : "items-start"}`}>
-                        {/* Message Bubble */}
-                        {msg.content && (
-                          <div
-                            className={`rounded-2xl px-4 py-2 ${
-                              isMe
-                                ? "bg-[#CAFF33] text-[#1A1A1A] rounded-br-md"
-                                : "bg-[#262626] text-zinc-200 rounded-bl-md"
-                            }`}
-                          >
-                            <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{msg.content}</p>
-                            <p className={`text-[10px] mt-1 ${isMe ? "text-[#1A1A1A]/60" : "text-zinc-500"}`}>
-                              {formatTime(msg.createdAt)}
-                            </p>
-                          </div>
+                      {/* Sender avatar (only for other people's messages) */}
+                      {!isMe && (
+                        <div className="h-8 w-8 rounded-full bg-zinc-700 flex items-center justify-center shrink-0 mt-1 overflow-hidden text-xs text-white">
+                          <AvatarImg src={msg.sender.image} name={msg.sender.name} className="h-full w-full rounded-full" />
+                        </div>
+                      )}
+
+                      <div className={`space-y-1 max-w-[75%] ${isMe ? "" : ""}`}>
+                        {/* Sender name */}
+                        {!isMe && msg.sender.name && (
+                          <p className="text-[11px] text-zinc-500 ml-1">{msg.sender.name}</p>
                         )}
 
-                        {/* Attachments */}
-                        {msg.attachments?.length > 0 && (
-                          <div className={`space-y-1.5 ${isMe ? "flex flex-col items-end" : "flex flex-col items-start"}`}>
-                            {msg.attachments.map((att) => (
-                              <AttachmentDisplay key={att.id} attachment={att} isMine={isMe} />
-                            ))}
-                          </div>
-                        )}
+                        {/* Message bubble */}
+                        <div
+                          onContextMenu={(e) => handleMessageContext(e, msg)}
+                          className={`group relative rounded-2xl px-4 py-2 ${
+                            isMe
+                              ? "bg-[#CAFF33] text-[#1A1A1A] rounded-br-md"
+                              : "bg-[#262626] text-zinc-200 rounded-bl-md"
+                          }`}
+                        >
+                          {editingMessageId === msg.id ? (
+                            <div className="flex gap-2">
+                              <input
+                                value={editText}
+                                onChange={(e) => setEditText(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleEditMessage(msg.id) }
+                                  if (e.key === "Escape") { setEditingMessageId(null); setEditText("") }
+                                }}
+                                className="flex-1 bg-transparent border-b border-current text-sm outline-none"
+                                autoFocus
+                              />
+                              <button onClick={() => handleEditMessage(msg.id)} className="text-xs font-medium">
+                                <Check className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              {/* Text content */}
+                              {msg.content && (
+                                <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{msg.content}</p>
+                              )}
+
+                              {/* Attachments */}
+                              {msg.attachments?.length > 0 && (
+                                <div className={`space-y-1.5 mt-1.5 ${!msg.content ? "" : ""}`}>
+                                  {msg.attachments.map((att) => (
+                                    <AttachmentDisplay key={att.id} attachment={att} />
+                                  ))}
+                                </div>
+                              )}
+
+                              {/* Timestamp row */}
+                              <div className={`flex items-center gap-1.5 mt-1 ${isMe ? "justify-end" : "justify-start"}`}>
+                                <span className={`text-[10px] ${isMe ? "text-[#1A1A1A]/60" : "text-zinc-500"}`}>
+                                  {formatTime(msg.createdAt)}
+                                </span>
+                                {msg.editedAt && (
+                                  <span className={`text-[9px] ${isMe ? "text-[#1A1A1A]/50" : "text-zinc-600"}`}>edited</span>
+                                )}
+                              </div>
+
+                              {/* Context menu trigger (only own messages) */}
+                              {isMe && (
+                                <button
+                                  onClick={(e) => handleMessageContext(e, msg)}
+                                  className="absolute -right-1 -top-1 h-5 w-5 rounded-full bg-[#1A1A1A] border border-[#262626] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                >
+                                  <Ellipsis className="h-3 w-3 text-zinc-400" />
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </div>
                       </div>
+
+                      {/* My avatar (right side, shown for own messages) */}
+                      {isMe && (
+                        <div className="h-8 w-8 rounded-full bg-zinc-700 flex items-center justify-center shrink-0 mt-1 overflow-hidden text-xs text-white">
+                          <AvatarImg src={members.find((m) => m.id === userId)?.image} name="You" className="h-full w-full rounded-full" />
+                        </div>
+                      )}
                     </motion.div>
                   )
                 })
@@ -471,17 +593,49 @@ export function ChatClient({ userId }: { userId: string }) {
               <div ref={messagesEndRef} />
             </div>
 
+            {/* Context Menu */}
+            <AnimatePresence>
+              {menuMessageId && (
+                <motion.div
+                  ref={menuRef}
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  style={{ position: "fixed", left: menuPos.x - 120, top: menuPos.y - 10, zIndex: 100 }}
+                  className="bg-[#1C1C1C] border border-[#262626] rounded-xl shadow-2xl overflow-hidden min-w-[140px]"
+                >
+                  <button
+                    onClick={() => {
+                      const msg = messages.find((m) => m.id === menuMessageId)
+                      if (msg) { setEditingMessageId(msg.id); setEditText(msg.content || ""); setMenuMessageId(null) }
+                    }}
+                    className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-zinc-300 hover:bg-[#262626] transition-colors"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => handleDeleteMessage(menuMessageId!)}
+                    className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-red-400 hover:bg-[#262626] transition-colors"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Delete
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             {/* Pending Attachments Preview */}
             {pendingAttachments.length > 0 && (
               <div className="px-4 py-2 border-t border-[#262626] bg-[#1C1C1C]/30">
                 <div className="flex gap-2 overflow-x-auto pb-1">
                   {pendingAttachments.map((p, i) => (
                     <div key={i} className="relative shrink-0 group">
-                      {isImage("", p.file.name) ? (
+                      {isImage(p.file.name) ? (
                         <div className="h-16 w-16 rounded-lg overflow-hidden border border-[#262626]">
                           <img src={p.dataUrl} alt="" className="h-full w-full object-cover" />
                         </div>
-                      ) : isVideo("", p.file.name) ? (
+                      ) : isVideo(p.file.name) ? (
                         <div className="h-16 w-16 rounded-lg bg-zinc-800 flex items-center justify-center border border-[#262626]">
                           <Video className="h-5 w-5 text-zinc-400" />
                         </div>
@@ -550,12 +704,12 @@ export function ChatClient({ userId }: { userId: string }) {
   )
 }
 
-function AttachmentDisplay({ attachment, isMine }: { attachment: Attachment; isMine: boolean }) {
+function AttachmentDisplay({ attachment }: { attachment: Attachment }) {
   const att = attachment
 
-  if (isImage(att.type, att.name)) {
+  if (isImage(att.name)) {
     return (
-      <div className={`max-w-[260px] rounded-xl overflow-hidden border border-[#262626] ${isMine ? "ml-auto" : "mr-auto"}`}>
+      <div className="max-w-[260px] rounded-xl overflow-hidden border border-[#262626]">
         <a href={att.data} target="_blank" rel="noopener noreferrer">
           <img src={att.data} alt={att.name} className="w-full max-h-64 object-cover" />
         </a>
@@ -563,9 +717,9 @@ function AttachmentDisplay({ attachment, isMine }: { attachment: Attachment; isM
     )
   }
 
-  if (isVideo(att.type, att.name)) {
+  if (isVideo(att.name)) {
     return (
-      <div className={`max-w-[280px] rounded-xl overflow-hidden border border-[#262626] ${isMine ? "ml-auto" : "mr-auto"}`}>
+      <div className="max-w-[280px] rounded-xl overflow-hidden border border-[#262626]">
         <video controls className="w-full max-h-64">
           <source src={att.data} />
         </video>
@@ -573,9 +727,9 @@ function AttachmentDisplay({ attachment, isMine }: { attachment: Attachment; isM
     )
   }
 
-  if (isAudio(att.type, att.name)) {
+  if (isAudio(att.name)) {
     return (
-      <div className={`rounded-xl bg-[#1C1C1C] border border-[#262626] p-3 ${isMine ? "ml-auto" : "mr-auto"} max-w-[240px]`}>
+      <div className="rounded-xl bg-[#1C1C1C] border border-[#262626] p-3 max-w-[240px]">
         <div className="flex items-center gap-2 mb-1.5">
           <Mic className="h-3.5 w-3.5 text-[#CAFF33]" />
           <span className="text-xs text-zinc-400 truncate">{att.name.replace(/\.[^.]+$/, "")}</span>
@@ -593,7 +747,7 @@ function AttachmentDisplay({ attachment, isMine }: { attachment: Attachment; isM
       download={att.name}
       target="_blank"
       rel="noopener noreferrer"
-      className={`flex items-center gap-3 rounded-xl bg-[#1C1C1C] border border-[#262626] p-3 hover:bg-[#222] transition-colors ${isMine ? "ml-auto" : "mr-auto"} max-w-[240px] group`}
+      className="flex items-center gap-3 rounded-xl bg-[#1C1C1C] border border-[#262626] p-3 hover:bg-[#222] transition-colors max-w-[240px] group"
     >
       <div className="h-9 w-9 rounded-lg bg-zinc-800 flex items-center justify-center shrink-0">
         {getFileIcon(att.type)}
