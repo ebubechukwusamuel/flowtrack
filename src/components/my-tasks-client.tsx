@@ -17,6 +17,8 @@ import {
   ArrowUp,
   ArrowDown,
 } from "lucide-react"
+import { TaskDialog } from "./task-dialog"
+import type { Task, User } from "@/types"
 
 interface MyTask {
   id: string
@@ -109,7 +111,7 @@ function SubmitWidget({ taskId, onDone }: { taskId: string; onDone: () => void }
   )
 }
 
-function TaskCard({ task, onSubmitted }: { task: MyTask; onSubmitted: () => void }) {
+function TaskCard({ task, onSubmitted, onClick }: { task: MyTask; onSubmitted: () => void; onClick: () => void }) {
   const PriorityIcon = PRIORITY_ICONS[task.priority] || AlertCircle
   const priorityColor = PRIORITY_COLORS[task.priority] || "text-zinc-500"
   const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && task.status !== "done"
@@ -119,9 +121,9 @@ function TaskCard({ task, onSubmitted }: { task: MyTask; onSubmitted: () => void
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <Link href={`/projects/${task.projectId}`} className="group">
-              <h3 className="font-medium group-hover:text-zinc-600 dark:group-hover:text-zinc-300">{task.title}</h3>
-            </Link>
+            <button onClick={onClick} className="font-medium text-left hover:text-zinc-600 dark:hover:text-zinc-300">
+              {task.title}
+            </button>
             <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[task.status] || STATUS_STYLES.todo}`}>
               {STATUS_LABELS[task.status] || task.status}
             </span>
@@ -170,27 +172,41 @@ function TaskCard({ task, onSubmitted }: { task: MyTask; onSubmitted: () => void
   )
 }
 
-export function MyTasksClient({ tasks }: { tasks: MyTask[] }) {
+export function MyTasksClient({ tasks, currentUserId }: { tasks: MyTask[]; currentUserId?: string }) {
   const [filter, setFilter] = useState<string>("all")
   const [search, setSearch] = useState("")
   const [refreshKey, setRefreshKey] = useState(0)
+  const [editingTask, setEditingTask] = useState<MyTask | null>(null)
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [taskList, setTaskList] = useState(tasks)
 
-  const filtered = tasks.filter((t) => {
+  const filtered = taskList.filter((t) => {
     if (filter !== "all" && t.status !== filter) return false
     if (search && !t.title.toLowerCase().includes(search.toLowerCase())) return false
     return true
   })
 
-  const todoCount = tasks.filter((t) => t.status === "todo").length
-  const inProgressCount = tasks.filter((t) => t.status === "in_progress").length
-  const doneCount = tasks.filter((t) => t.status === "done").length
+  const todoCount = taskList.filter((t) => t.status === "todo").length
+  const inProgressCount = taskList.filter((t) => t.status === "in_progress").length
+  const doneCount = taskList.filter((t) => t.status === "done").length
+
+  async function updateTask(id: string, data: Record<string, unknown>) {
+    const res = await fetch("/api/tasks", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, ...data }),
+    })
+    if (!res.ok) throw new Error("Failed to update")
+    const updated = await res.json()
+    setTaskList((prev) => prev.map((t) => (t.id === id ? { ...t, ...updated } : t)))
+  }
 
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold tracking-tight">My Tasks</h1>
-        <p className="text-sm text-zinc-500 mt-1">{tasks.length} task{tasks.length !== 1 ? "s" : ""} assigned to you</p>
+        <p className="text-sm text-zinc-500 mt-1">{taskList.length} task{taskList.length !== 1 ? "s" : ""} assigned to you</p>
       </div>
 
       {/* Filter tabs */}
@@ -244,10 +260,41 @@ export function MyTasksClient({ tasks }: { tasks: MyTask[] }) {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, delay: i * 0.03 }}
             >
-              <TaskCard task={task} onSubmitted={() => setRefreshKey((k) => k + 1)} />
+              <TaskCard
+                task={task}
+                onSubmitted={() => setRefreshKey((k) => k + 1)}
+                onClick={() => { setEditingTask(task); setDialogOpen(true) }}
+              />
             </motion.div>
           ))}
         </div>
+      )}
+
+      {dialogOpen && editingTask && (
+        <TaskDialog
+          task={editingTask as unknown as Task}
+          column="todo"
+          users={[]}
+          currentUserId={currentUserId}
+          onSave={async (title, data) => {
+            await updateTask(editingTask.id, { ...data, title } as Record<string, unknown>)
+            setDialogOpen(false)
+            setEditingTask(null)
+            setRefreshKey((k) => k + 1)
+          }}
+          onDelete={async (id) => {
+            const res = await fetch(`/api/tasks?id=${id}`, { method: "DELETE" })
+            if (res.ok) {
+              setTaskList((prev) => prev.filter((t) => t.id !== id))
+            }
+            setDialogOpen(false)
+            setEditingTask(null)
+          }}
+          onClose={() => {
+            setDialogOpen(false)
+            setEditingTask(null)
+          }}
+        />
       )}
     </div>
   )

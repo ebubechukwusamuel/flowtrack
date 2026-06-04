@@ -219,7 +219,12 @@ export function ProjectBoard({ project, users, currentUserId, isAdmin: _isAdmin 
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="font-medium">{task.title}</h3>
+                          <button
+                            onClick={() => { setEditingTask(task); setDialogOpen(true) }}
+                            className="font-medium text-left hover:text-zinc-600 dark:hover:text-zinc-300"
+                          >
+                            {task.title}
+                          </button>
                           <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[task.status] || STATUS_STYLES.todo}`}>
                             {STATUS_LABELS[task.status] || task.status}
                           </span>
