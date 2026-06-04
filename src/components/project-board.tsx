@@ -220,7 +220,11 @@ export function ProjectBoard({ project, users, currentUserId, isAdmin: _isAdmin 
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <button
-                            onClick={() => { setEditingTask(task); setDialogOpen(true) }}
+                            onClick={() => {
+                              if (task.status === "todo") {
+                                updateTask(task.id, { status: "in_progress" } as Partial<Task>)
+                              }
+                            }}
                             className="font-medium text-left hover:text-zinc-600 dark:hover:text-zinc-300"
                           >
                             {task.title}

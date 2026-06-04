@@ -17,8 +17,6 @@ import {
   ArrowUp,
   ArrowDown,
 } from "lucide-react"
-import { TaskDialog } from "./task-dialog"
-import type { Task, User } from "@/types"
 
 interface MyTask {
   id: string
@@ -111,7 +109,7 @@ function SubmitWidget({ taskId, onDone }: { taskId: string; onDone: () => void }
   )
 }
 
-function TaskCard({ task, onSubmitted, onClick }: { task: MyTask; onSubmitted: () => void; onClick: () => void }) {
+function TaskCard({ task, onSubmitted, onStart }: { task: MyTask; onSubmitted: () => void; onStart: () => void }) {
   const PriorityIcon = PRIORITY_ICONS[task.priority] || AlertCircle
   const priorityColor = PRIORITY_COLORS[task.priority] || "text-zinc-500"
   const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && task.status !== "done"
@@ -121,7 +119,7 @@ function TaskCard({ task, onSubmitted, onClick }: { task: MyTask; onSubmitted: (
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <button onClick={onClick} className="font-medium text-left hover:text-zinc-600 dark:hover:text-zinc-300">
+            <button onClick={onStart} className="font-medium text-left hover:text-zinc-600 dark:hover:text-zinc-300">
               {task.title}
             </button>
             <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[task.status] || STATUS_STYLES.todo}`}>
@@ -172,12 +170,10 @@ function TaskCard({ task, onSubmitted, onClick }: { task: MyTask; onSubmitted: (
   )
 }
 
-export function MyTasksClient({ tasks, currentUserId }: { tasks: MyTask[]; currentUserId?: string }) {
+export function MyTasksClient({ tasks }: { tasks: MyTask[] }) {
   const [filter, setFilter] = useState<string>("all")
   const [search, setSearch] = useState("")
   const [refreshKey, setRefreshKey] = useState(0)
-  const [editingTask, setEditingTask] = useState<MyTask | null>(null)
-  const [dialogOpen, setDialogOpen] = useState(false)
   const [taskList, setTaskList] = useState(tasks)
 
   const filtered = taskList.filter((t) => {
@@ -190,15 +186,16 @@ export function MyTasksClient({ tasks, currentUserId }: { tasks: MyTask[]; curre
   const inProgressCount = taskList.filter((t) => t.status === "in_progress").length
   const doneCount = taskList.filter((t) => t.status === "done").length
 
-  async function updateTask(id: string, data: Record<string, unknown>) {
+  async function handleStartTask(taskId: string) {
     const res = await fetch("/api/tasks", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, ...data }),
+      body: JSON.stringify({ id: taskId, status: "in_progress" }),
     })
-    if (!res.ok) throw new Error("Failed to update")
-    const updated = await res.json()
-    setTaskList((prev) => prev.map((t) => (t.id === id ? { ...t, ...updated } : t)))
+    if (res.ok) {
+      const updated = await res.json()
+      setTaskList((prev) => prev.map((t) => (t.id === taskId ? { ...t, ...updated } : t)))
+    }
   }
 
   return (
@@ -263,38 +260,13 @@ export function MyTasksClient({ tasks, currentUserId }: { tasks: MyTask[]; curre
               <TaskCard
                 task={task}
                 onSubmitted={() => setRefreshKey((k) => k + 1)}
-                onClick={() => { setEditingTask(task); setDialogOpen(true) }}
+                onStart={() => {
+                  if (task.status === "todo") handleStartTask(task.id)
+                }}
               />
             </motion.div>
           ))}
         </div>
-      )}
-
-      {dialogOpen && editingTask && (
-        <TaskDialog
-          task={editingTask as unknown as Task}
-          column="todo"
-          users={[]}
-          currentUserId={currentUserId}
-          onSave={async (title, data) => {
-            await updateTask(editingTask.id, { ...data, title } as Record<string, unknown>)
-            setDialogOpen(false)
-            setEditingTask(null)
-            setRefreshKey((k) => k + 1)
-          }}
-          onDelete={async (id) => {
-            const res = await fetch(`/api/tasks?id=${id}`, { method: "DELETE" })
-            if (res.ok) {
-              setTaskList((prev) => prev.filter((t) => t.id !== id))
-            }
-            setDialogOpen(false)
-            setEditingTask(null)
-          }}
-          onClose={() => {
-            setDialogOpen(false)
-            setEditingTask(null)
-          }}
-        />
       )}
     </div>
   )

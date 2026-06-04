@@ -104,6 +104,7 @@ interface MemberWorkload {
 interface UpcomingTask {
   id: string
   title: string
+  status: string
   dueDate: string
   priority: string
   projectName: string
@@ -838,6 +839,21 @@ function MemberDashboard({
   user: { name: string; email: string; image: string | null }
 }) {
   const [unreadCount, setUnreadCount] = useState(0)
+  const [upcomingTasks, setUpcomingTasks] = useState(myUpcomingTasks)
+
+  async function handleStartTask(taskId: string) {
+    const res = await fetch("/api/tasks", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: taskId, status: "in_progress" }),
+    })
+    if (res.ok) {
+      const updated = await res.json()
+      setUpcomingTasks((prev) =>
+        prev.map((t) => (t.id === taskId ? { ...t, status: updated.status } : t))
+      )
+    }
+  }
 
   useEffect(() => {
     fetch("/api/notifications/unread-count").then((r) => r.json()).then((d) => setUnreadCount(d.count)).catch(() => {})
@@ -1115,7 +1131,7 @@ function MemberDashboard({
                   animate="visible"
                   className="divide-y divide-[#262626]/40 text-xs font-light text-zinc-300"
                 >
-                  {myUpcomingTasks.map((t, idx) => {
+                  {upcomingTasks.map((t, idx) => {
                     const isOverdue = new Date(t.dueDate) < new Date()
                     return (
                       <motion.tr
@@ -1125,7 +1141,25 @@ function MemberDashboard({
                         className="transition-colors"
                       >
                         <td className="py-3.5 pl-2 font-normal text-white">{idx + 1}</td>
-                        <td className="py-3.5 font-medium text-white">{t.title}</td>
+                        <td className="py-3.5">
+                          <button
+                            onClick={() => {
+                              if (t.status === "todo") handleStartTask(t.id)
+                            }}
+                            className="font-medium text-white hover:text-[#CAFF33] text-left"
+                          >
+                            {t.title}
+                          </button>
+                          <span className={`ml-2 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                            t.status === "todo"
+                              ? "bg-zinc-700 text-zinc-400"
+                              : t.status === "in_progress"
+                              ? "bg-amber-900 text-amber-300"
+                              : "bg-[#CAFF33]/10 text-[#CAFF33]"
+                          }`}>
+                            {t.status === "todo" ? "To Do" : t.status === "in_progress" ? "In Progress" : "Done"}
+                          </span>
+                        </td>
                         <td className="py-3.5">
                           <div className="flex items-center gap-1.5">
                             <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: t.projectColor }} />
@@ -1138,9 +1172,6 @@ function MemberDashboard({
                         <td className={`py-3.5 font-medium ${isOverdue ? "text-red-500" : "text-zinc-400"}`}>
                           {isOverdue ? "Overdue: " : ""}
                           {new Date(t.dueDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                        </td>
-                        <td className="py-3.5 pr-2 text-center text-zinc-500 hover:text-white transition-colors cursor-pointer">
-                          <MoreHorizontal className="h-4 w-4 mx-auto" />
                         </td>
                       </motion.tr>
                     )

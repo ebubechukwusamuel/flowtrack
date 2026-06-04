@@ -35,7 +35,6 @@ export default async function MyTasksPage() {
         projectColor: t.project.color,
         assignee: t.assignee ? { id: t.assignee.id, name: t.assignee.name || "Unknown" } : null,
       }))}
-      currentUserId={userId}
     />
   )
 }

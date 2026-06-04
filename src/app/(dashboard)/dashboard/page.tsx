@@ -171,6 +171,7 @@ export default async function DashboardPage() {
     .map((t) => ({
       id: t.id,
       title: t.title,
+      status: t.status,
       dueDate: t.dueDate!.toISOString(),
       priority: t.priority,
       projectName: t.project.name,
