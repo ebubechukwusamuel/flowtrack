@@ -19,7 +19,10 @@ export async function GET() {
         messages: {
           orderBy: { createdAt: "desc" },
           take: 1,
-          include: { sender: { select: { id: true, name: true } } },
+          include: {
+            sender: { select: { id: true, name: true } },
+            attachments: { select: { id: true, type: true, name: true } },
+          },
         },
       },
       orderBy: { updatedAt: "desc" },

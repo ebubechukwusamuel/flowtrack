@@ -18,7 +18,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ chatId: 
     const messages = await prisma.message.findMany({
       where: { chatId },
       orderBy: { createdAt: "asc" },
-      include: { sender: { select: { id: true, name: true, image: true } } },
+      include: {
+        sender: { select: { id: true, name: true, image: true } },
+        attachments: { select: { id: true, type: true, name: true, data: true, size: true } },
+      },
     })
 
     return NextResponse.json({ messages })
@@ -39,16 +42,29 @@ export async function POST(req: Request, { params }: { params: Promise<{ chatId:
     })
     if (!participant) return NextResponse.json({ error: "Not a participant" }, { status: 403 })
 
-    const { content } = await req.json()
-    if (!content?.trim()) return NextResponse.json({ error: "Content required" }, { status: 400 })
+    const { content, attachments } = await req.json()
+    if (!content?.trim() && (!attachments || attachments.length === 0)) {
+      return NextResponse.json({ error: "Content or attachment required" }, { status: 400 })
+    }
 
     const message = await prisma.message.create({
       data: {
-        content: content.trim(),
+        content: content?.trim() || null,
         chatId,
         senderId: session.user.id,
+        attachments: {
+          create: (attachments || []).map((a: { type: string; name: string; data: string; size: number }) => ({
+            type: a.type,
+            name: a.name,
+            data: a.data,
+            size: a.size,
+          })),
+        },
       },
-      include: { sender: { select: { id: true, name: true, image: true } } },
+      include: {
+        sender: { select: { id: true, name: true, image: true } },
+        attachments: { select: { id: true, type: true, name: true, data: true, size: true } },
+      },
     })
 
     await prisma.chat.update({ where: { id: chatId }, data: { updatedAt: new Date() } })
@@ -58,7 +74,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ chatId:
     })
     if (otherParticipant) {
       const sender = session.user.name || "Someone"
-      const preview = content.trim().length > 60 ? content.trim().slice(0, 60) + "..." : content.trim()
+      const preview = content?.trim()
+        ? (content.trim().length > 60 ? content.trim().slice(0, 60) + "..." : content.trim())
+        : `Sent a ${attachments?.[0]?.type || "file"}`
       await createNotification({
         userId: otherParticipant.userId,
         type: "new_message",

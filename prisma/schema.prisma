@@ -228,16 +228,30 @@ model ChatParticipant {
 }
 
 model Message {
-  id        String    @id @default(cuid())
-  content   String
-  createdAt DateTime  @default(now())
+  id        String         @id @default(cuid())
+  content   String?
+  createdAt DateTime       @default(now())
   readAt    DateTime?
 
   senderId String
   chatId   String
 
+  attachments MessageAttachment[]
+
   sender User @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
   chat   Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+}
+
+model MessageAttachment {
+  id        String   @id @default(cuid())
+  type      String   // "image" | "video" | "audio" | "document"
+  name      String
+  data      String   // base64 encoded file data
+  size      Int
+  createdAt DateTime @default(now())
+
+  messageId String
+  message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
 }
 
 model Notification {
