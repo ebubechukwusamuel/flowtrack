@@ -13,7 +13,7 @@ export default async function TeamPage() {
 
   const members = await prisma.organizationMember.findMany({
     where: { organizationId: membership.organization.id },
-    include: { user: { select: { id: true, name: true, email: true } } },
+    include: { user: { select: { id: true, name: true, email: true, image: true, jobTitle: true } } },
     orderBy: { createdAt: "asc" },
   })
 

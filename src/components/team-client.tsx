@@ -2,8 +2,9 @@
 
 import { useState } from "react"
 import { motion } from "framer-motion"
-import { Users, Mail, Trash2, Shield, UserCircle, Send, CheckCircle } from "lucide-react"
+import { Users, Mail, Trash2, Shield, UserCircle, Send, CheckCircle, Briefcase } from "lucide-react"
 import type { OrgMember } from "@/types"
+import { AvatarImg } from "./avatar-img"
 
 export function TeamClient({
   orgName,
@@ -115,9 +116,7 @@ export function TeamClient({
           {memberList.map((member) => (
             <div key={member.id} className="flex items-center justify-between px-5 py-3">
               <div className="flex items-center gap-3">
-                <div className="h-8 w-8 rounded-full bg-zinc-200 flex items-center justify-center dark:bg-zinc-700">
-                  <UserCircle className="h-6 w-6 text-zinc-400" />
-                </div>
+                <AvatarImg src={member.user.image} name={member.user.name || member.user.email || ""} size="sm" />
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium">{member.user.name || member.user.email}</span>
@@ -127,8 +126,22 @@ export function TeamClient({
                         Admin
                       </span>
                     )}
+                    {member.role === "member" && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+                        <UserCircle className="h-3 w-3" />
+                        Member
+                      </span>
+                    )}
                   </div>
-                  <p className="text-xs text-zinc-400">{member.user.email}</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <p className="text-xs text-zinc-400">{member.user.email}</p>
+                    {member.user.jobTitle && (
+                      <span className="inline-flex items-center gap-1 text-xs text-zinc-400 border-l border-zinc-300 pl-2 dark:border-zinc-600">
+                        <Briefcase className="h-3 w-3" />
+                        {member.user.jobTitle}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
               {isAdmin && member.role !== "admin" && (

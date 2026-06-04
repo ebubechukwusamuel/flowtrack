@@ -8,6 +8,7 @@ import {
   Check, Pencil, Trash2, Ellipsis,
 } from "lucide-react"
 import { VoiceRecorder } from "@/components/voice-recorder"
+import { AvatarImg } from "./avatar-img"
 
 interface Member {
   id: string
@@ -42,7 +43,7 @@ interface ChatInfo {
   updatedAt: string
 }
 
-const ACCEPTED_TYPES = "image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar,.csv,.json,.xml"
+const ACCEPTED_TYPES = "*/*"
 
 function formatTime(dateStr: string): string {
   const d = new Date(dateStr)
@@ -80,16 +81,6 @@ function isVideo(name: string): boolean {
 function isAudio(name: string): boolean {
   const ext = name.split(".").pop()?.toLowerCase()
   return ["mp3", "wav", "ogg", "webm", "m4a"].includes(ext || "")
-}
-
-function AvatarImg({ src, name, className }: { src: string | null | undefined; name: string | null | undefined; className?: string }) {
-  return src ? (
-    <img src={src} alt="" className={`object-cover ${className || ""}`} />
-  ) : (
-    <span className={`flex items-center justify-center ${className || ""}`}>
-      {(name || "?")[0].toUpperCase()}
-    </span>
-  )
 }
 
 export function ChatClient({ userId }: { userId: string }) {
@@ -384,7 +375,7 @@ export function ChatClient({ userId }: { userId: string }) {
                   }`}
                 >
                   <div className="h-10 w-10 rounded-full bg-zinc-700 flex items-center justify-center shrink-0 text-sm text-white overflow-hidden">
-                    <AvatarImg src={m.image} name={m.name} className="h-full w-full rounded-full" />
+                    <AvatarImg src={m.image} name={m.name} size="md" />
                   </div>
                   <div className="flex-1 min-w-0 text-left">
                     <div className="flex items-center justify-between">
@@ -431,7 +422,7 @@ export function ChatClient({ userId }: { userId: string }) {
                     <div className={`h-9 w-9 rounded-full flex items-center justify-center text-xs text-white overflow-hidden ${
                       isActive ? "ring-2 ring-[#CAFF33]" : "bg-zinc-700"
                     }`}>
-                      <AvatarImg src={m.image} name={m.name} className="h-full w-full rounded-full" />
+                      <AvatarImg src={m.image} name={m.name} size="md" />
                     </div>
                     <span className="text-[10px] text-zinc-400 truncate max-w-[56px] leading-tight text-center">
                       {m.name?.split(" ")[0] || "?"}
@@ -464,7 +455,7 @@ export function ChatClient({ userId }: { userId: string }) {
               <div className="h-9 w-9 rounded-full bg-zinc-700 flex items-center justify-center text-sm text-white overflow-hidden">
                 {selectedChatData && (() => {
                   const other = otherParticipant(selectedChatData)
-                  return <AvatarImg src={other?.image} name={other?.name} className="h-full w-full rounded-full" />
+                  return <AvatarImg src={other?.image} name={other?.name} size="sm" />
                 })()}
               </div>
               <div>
@@ -505,7 +496,7 @@ export function ChatClient({ userId }: { userId: string }) {
                       {/* Sender avatar (only for other people's messages) */}
                       {!isMe && (
                         <div className="h-8 w-8 rounded-full bg-zinc-700 flex items-center justify-center shrink-0 mt-1 overflow-hidden text-xs text-white">
-                          <AvatarImg src={msg.sender.image} name={msg.sender.name} className="h-full w-full rounded-full" />
+                          <AvatarImg src={msg.sender.image} name={msg.sender.name} size="sm" />
                         </div>
                       )}
 
@@ -583,7 +574,7 @@ export function ChatClient({ userId }: { userId: string }) {
                       {/* My avatar (right side, shown for own messages) */}
                       {isMe && (
                         <div className="h-8 w-8 rounded-full bg-zinc-700 flex items-center justify-center shrink-0 mt-1 overflow-hidden text-xs text-white">
-                          <AvatarImg src={members.find((m) => m.id === userId)?.image} name="You" className="h-full w-full rounded-full" />
+                          <AvatarImg src={members.find((m) => m.id === userId)?.image} name="You" size="sm" />
                         </div>
                       )}
                     </motion.div>
