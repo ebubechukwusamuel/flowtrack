@@ -10,12 +10,7 @@ export default async function SettingsPage() {
 
   const membership = await getOrCreateOrg(session.user.id, session.user.name, session.user.email)
 
-  const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { id: true, name: true, email: true, image: true, bio: true, jobTitle: true, timezone: true, notifyOnAssign: true, createdAt: true },
-  })
-
-  if (!user) redirect("/login")
+  if (membership.role !== "admin") redirect("/dashboard")
 
   const smtpConfig = {
     host: membership.organization.smtpHost || "",
@@ -27,19 +22,7 @@ export default async function SettingsPage() {
   return (
     <SettingsClient
       orgName={membership.organization.name}
-      orgRole={membership.role}
       smtpConfig={smtpConfig}
-      user={{
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        image: user.image,
-        bio: user.bio,
-        jobTitle: user.jobTitle,
-        timezone: user.timezone,
-        notifyOnAssign: user.notifyOnAssign,
-        createdAt: user.createdAt.toISOString(),
-      }}
     />
   )
 }

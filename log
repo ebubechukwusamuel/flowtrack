@@ -386,3 +386,22 @@
   18 | ...
  GET / 307 in 417ms (next.js: 54ms, application-code: 363ms)
  GET /projects/cmpt0wjld001b8wv26bk5id7x 200 in 6.7min (next.js: 311ms, application-code: 6.7min)
+✓ Compiled in 15s
+✓ Compiled in 96ms
+✓ Compiled in 2.9s
+✓ Compiled in 988ms
+ GET /dashboard 200 in 101.7min (next.js: 14ms, application-code: 101.7min)
+  Reload env: .env
+  Reload env: .env
+  Reload env: .env
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+✓ Compiled in 58.6s
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+○ Compiling /projects/[id] ...
+✓ Finished filesystem cache database compaction in 13.7s
+ GET /projects/cmpt0wjld001b8wv26bk5id7x 200 in 205.5min (next.js: 302ms, application-code: 205.5min)
+ GET /projects/cmpt0wjld001b8wv26bk5id7x 200 in 22.0min (next.js: 901ms, application-code: 22.0min)
+ GET /projects/cmpt0wjld001b8wv26bk5id7x 200 in 22.0min (next.js: 1113ms, application-code: 22.0min)
+ GET /projects/cmpt0wjld001b8wv26bk5id7x 200 in 22.5min (next.js: 32.0s, application-code: 22.0min)
+ GET /projects/cmpt0wjld001b8wv26bk5id7x 200 in 22.0min (next.js: 624ms, application-code: 22.0min)
+ GET /projects/cmpt0wjld001b8wv26bk5id7x 200 in 22.0min (next.js: 1013ms, application-code: 22.0min)

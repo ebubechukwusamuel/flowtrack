@@ -9,13 +9,15 @@ export async function GET() {
 
   const membership = await getOrCreateOrg(session.user.id, session.user.name, session.user.email)
 
-  const members = await prisma.organizationMember.findMany({
+  const orgMembers = await prisma.organizationMember.findMany({
     where: { organizationId: membership.organization.id },
-    include: { user: { select: { id: true, name: true, email: true } } },
+    include: { user: { select: { id: true, name: true, email: true, image: true } } },
     orderBy: { createdAt: "asc" },
   })
 
-  return NextResponse.json(members)
+  const members = orgMembers.map((m) => m.user)
+
+  return NextResponse.json({ members })
 }
 
 export async function POST(req: Request) {

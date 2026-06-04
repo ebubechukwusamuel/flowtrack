@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
-import { motion } from "framer-motion"
+import { motion, AnimatePresence } from "framer-motion"
 import {
   Plus,
   FolderKanban,
@@ -20,7 +20,20 @@ import {
   AlertCircle,
   UserPlus,
   Target,
+  BarChart3,
+  Search,
+  Bell,
+  ChevronDown,
+  MoreHorizontal,
 } from "lucide-react"
+import {
+  tapScale,
+  hoverLift,
+  staggerContainer,
+  staggerItem,
+  springSnappy,
+  fadeInUp,
+} from "@/lib/hooks/use-animation"
 import {
   PieChart,
   Pie,
@@ -35,10 +48,23 @@ import {
 } from "recharts"
 import type { ProjectSummary, Activity as ActivityType } from "@/types"
 
+interface DashboardTask {
+  id: string
+  title: string
+  description: string
+  status: string
+  priority: string
+  dueDate: string | null
+  createdAt: string
+  projectName: string
+  projectColor: string
+  assignee: { id: string; name: string } | null
+}
+
 interface StatCardData {
   label: string
   value: number
-  icon: React.ElementType
+  icon: React.ComponentType<{ className?: string }>
   color: string
 }
 
@@ -84,24 +110,32 @@ interface UpcomingTask {
   projectColor: string
 }
 
-const STATUS_COLORS = {
+// Global visual style configurations
+const STATUS_COLORS: Record<string, string> = {
   todo: "#a1a1aa",
   in_progress: "#f59e0b",
-  done: "#10b981",
+  done: "#CAFF33",
 }
 
-const PRIORITY_COLORS = {
+const PRIORITY_COLORS: Record<string, string> = {
   low: "#94a3b8",
   medium: "#3b82f6",
   high: "#f97316",
   urgent: "#ef4444",
 }
 
-const PRIORITY_BG = {
-  low: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400",
-  medium: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
-  high: "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300",
-  urgent: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
+const PRIORITY_BG: Record<string, string> = {
+  low: "bg-zinc-800/40 text-zinc-400 border border-zinc-700/30",
+  medium: "bg-blue-900/20 text-blue-400 border border-blue-800/30",
+  high: "bg-orange-900/20 text-orange-400 border border-orange-850/30",
+  urgent: "bg-red-900/20 text-red-400 border border-red-850/30",
+}
+
+const PRIORITY_TEXT: Record<string, string> = {
+  low: "text-zinc-400",
+  medium: "text-blue-400",
+  high: "text-orange-400",
+  urgent: "text-red-400",
 }
 
 function AnimatedValue({ value, suffix = "", className, glow }: { value: number; suffix?: string; className?: string; glow?: string }) {
@@ -128,34 +162,29 @@ function AnimatedValue({ value, suffix = "", className, glow }: { value: number;
           requestAnimationFrame(update)
         }
       },
-      { threshold: 0.3 }
+      { threshold: 0.1 }
     )
     observer.observe(el)
     return () => observer.disconnect()
   }, [value, hasAnimated])
 
-  return <span ref={ref} className={`${className} ${glow ? "animate-glow-pulse" : ""}`} style={glow ? ({ '--glow': glow } as React.CSSProperties) : undefined}>{displayed}{suffix}</span>
+  return (
+    <span ref={ref} className={`${className} ${glow ? "animate-glow-pulse" : ""}`} style={glow ? ({ '--glow': glow } as React.CSSProperties) : undefined}>
+      {displayed.toLocaleString()}{suffix}
+    </span>
+  )
 }
 
 function Section({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 24 }}
-      animate={{ opacity: 1, y: 0 }}
+      initial={{ opacity: 0, y: 20 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-40px" }}
       transition={{ duration: 0.5, delay, ease: [0.25, 0.1, 0.25, 1] }}
     >
       {children}
     </motion.div>
-  )
-}
-
-function PriorityBadge({ priority }: { priority: string }) {
-  const p = priority.toLowerCase()
-  const bg = PRIORITY_BG[p as keyof typeof PRIORITY_BG] || "bg-zinc-100 text-zinc-600"
-  return (
-    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${bg}`}>
-      {p}
-    </span>
   )
 }
 
@@ -171,8 +200,624 @@ function formatRelativeTime(dateStr: string) {
   return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" })
 }
 
-// ─── MEMBER DASHBOARD ────────────────────────────────────────────────────────
+// ----------------------------------------------------
+// 1. REUSABLE FIGMA-STYLE STAT CARD
+// ----------------------------------------------------
+function FigmaStatCard({
+  label,
+  value,
+  icon: Icon,
+  color,
+  i = 0,
+}: {
+  label: string
+  value: number
+  icon: React.ComponentType<{ className?: string }>
+  color: string
+  i?: number
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, delay: 0.05 + i * 0.05, ease: [0.2, 0, 0.15, 1] }}
+      whileHover={{ y: -4, boxShadow: "0 16px 40px rgba(0,0,0,0.3)" }}
+      whileTap={{ scale: 0.98 }}
+      className="bg-[#1C1C1C] border border-[#262626] rounded-2xl p-5 shadow-[0_1px_3px_0_rgba(0,0,0,0.04)] hover:border-[#CAFF33]/30 transition-all duration-300 group cursor-default"
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="space-y-1.5">
+          <AnimatedValue value={value} className="text-[28px] font-semibold text-white leading-tight font-lexend" />
+          <p className="text-sm font-light text-zinc-400">{label}</p>
+        </div>
+        <motion.div
+          whileHover={{ rotate: 5, scale: 1.05 }}
+          className="h-11 w-11 rounded-xl bg-[#262626] border border-[#333333] flex items-center justify-center text-[#CAFF33] shadow-md shrink-0 group-hover:bg-[#CAFF33] group-hover:text-[#1C1C1C] transition-colors duration-300"
+        >
+          <Icon className="h-5 w-5" />
+        </motion.div>
+      </div>
+    </motion.div>
+  )
+}
 
+// ----------------------------------------------------
+// 2. ADMIN DASHBOARD VIEW (Redesigned per Figma mockups)
+// ----------------------------------------------------
+function AdminDashboard({
+  projects,
+  stats,
+  activities,
+  memberWorkload,
+  orgName,
+  user,
+  tasks,
+}: {
+  projects: ProjectSummary[]
+  stats: Stats
+  activities: ActivityType[]
+  memberWorkload: MemberWorkload[]
+  orgName: string
+  user: { name: string; email: string; image: string | null }
+  tasks: DashboardTask[]
+}) {
+  const [activeFaqTab, setActiveFaqTab] = useState<"monthly" | "weekly">("monthly")
+  const [dateFilter, setDateFilter] = useState("all")
+  const [dateFilterOpen, setDateFilterOpen] = useState(false)
+  const [customStart, setCustomStart] = useState("")
+  const [customEnd, setCustomEnd] = useState("")
+  const [unreadCount, setUnreadCount] = useState(0)
+
+  useEffect(() => {
+    fetch("/api/notifications/unread-count").then((r) => r.json()).then((d) => setUnreadCount(d.count)).catch(() => {})
+    const interval = setInterval(() => {
+      fetch("/api/notifications/unread-count").then((r) => r.json()).then((d) => setUnreadCount(d.count)).catch(() => {})
+    }, 10000)
+    return () => clearInterval(interval)
+  }, [])
+
+  function filterTasksByDate(taskList: DashboardTask[]): DashboardTask[] {
+    const now = new Date()
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const endOfDay = new Date(startOfDay.getTime() + 86400000)
+
+    if (dateFilter === "today") {
+      return taskList.filter((t) => {
+        const d = new Date(t.createdAt)
+        return d >= startOfDay && d < endOfDay
+      })
+    }
+    if (dateFilter === "week") {
+      const dayOfWeek = startOfDay.getDay()
+      const weekStart = new Date(startOfDay)
+      weekStart.setDate(weekStart.getDate() - ((dayOfWeek + 6) % 7))
+      const weekEnd = new Date(weekStart)
+      weekEnd.setDate(weekEnd.getDate() + 7)
+      return taskList.filter((t) => {
+        const d = new Date(t.createdAt)
+        return d >= weekStart && d < weekEnd
+      })
+    }
+    if (dateFilter === "month") {
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+      const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+      return taskList.filter((t) => {
+        const d = new Date(t.createdAt)
+        return d >= monthStart && d < monthEnd
+      })
+    }
+    if (dateFilter === "custom" && customStart && customEnd) {
+      const cs = new Date(customStart)
+      const ce = new Date(customEnd)
+      ce.setDate(ce.getDate() + 1)
+      return taskList.filter((t) => {
+        const d = new Date(t.createdAt)
+        return d >= cs && d < ce
+      })
+    }
+    return taskList
+  }
+
+  const filteredTasks = filterTasksByDate(tasks)
+
+  const chartData = stats.tasksByDay.length > 0 ? stats.tasksByDay : [{ date: "No data", created: 0 }]
+
+  // Pie chart segment data matching To Do, In Progress, Done
+  const statusData = [
+    { name: "To Do", value: stats.todoCount, color: "#4b5563" },
+    { name: "In Progress", value: stats.inProgressCount, color: "#f59e0b" },
+    { name: "Completed", value: stats.doneCount, color: "#CAFF33" },
+  ].filter((item) => item.value > 0)
+
+  return (
+    <div className="p-6 space-y-8 bg-[#1A1A1A] min-h-screen text-white font-lexend">
+      
+      {/* HEADER SECTION (Figma Welcome + Actions) */}
+      <Section delay={0}>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-[#262626]">
+          <div className="space-y-1">
+            <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-white leading-tight">
+              Welcome Back, {user.name.split(" ")[0]}
+            </h1>
+            <p className="text-xs font-light text-zinc-500">{orgName} Workspace Admin Console</p>
+          </div>
+          
+          {/* Header Action Items */}
+          <div className="flex items-center gap-4 self-end sm:self-center">
+            {/* Search Input bar */}
+            <div className="relative hidden md:block">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
+              <input
+                placeholder="Search analytics..."
+                className="w-48 bg-[#1C1C1C] border border-[#262626] rounded-xl pl-9 pr-3 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[#CAFF33]/50 transition-all"
+              />
+            </div>
+            
+            {/* Alert bell notification */}
+            <Link href="/activity">
+              <motion.div
+                whileHover={{ scale: 1.05, borderColor: "#52525b" }}
+                whileTap={{ scale: 0.9 }}
+                animate={stats.overdueCount > 0 ? { rotate: [0, -12, 12, -10, 10, -6, 6, -3, 3, 0] } : {}}
+                transition={{ duration: 0.6, ease: "easeInOut" }}
+                className="relative p-2 bg-[#1C1C1C] border border-[#262626] rounded-xl cursor-pointer text-zinc-300 hover:text-white transition-colors"
+              >
+                <Bell className="h-4.5 w-4.5" />
+                {unreadCount > 0 && (
+                  <motion.span
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: "spring", stiffness: 500, damping: 20 }}
+                    className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full bg-red-500 text-[9px] font-bold text-white flex items-center justify-center px-1"
+                  >
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </motion.span>
+                )}
+              </motion.div>
+            </Link>
+
+            {/* Profile widget */}
+            <Link href="/profile">
+              <motion.div
+                whileHover={{ borderColor: "#52525b" }}
+                whileTap={{ scale: 0.97 }}
+                className="flex items-center gap-2 px-3 py-1.5 bg-[#1C1C1C] border border-[#262626] rounded-xl cursor-pointer"
+              >
+                <div className="h-6 w-6 rounded-full bg-zinc-700 flex items-center justify-center overflow-hidden shrink-0 text-xs text-white">
+                  {user.image ? (
+                    <img src={user.image} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <span>{user.name[0].toUpperCase()}</span>
+                  )}
+                </div>
+                <span className="text-xs font-light truncate max-w-[80px] text-zinc-300">{user.name.split(" ")[0]}</span>
+                <ChevronDown className="h-3 w-3 text-zinc-500 shrink-0" />
+              </motion.div>
+            </Link>
+          </div>
+        </div>
+      </Section>
+
+      {/* ALERTS */}
+      {stats.overdueCount > 0 && (
+        <Section delay={0.03}>
+          <div className="flex items-center gap-3 rounded-xl border border-red-500/20 bg-red-950/20 px-5 py-3.5 text-sm text-red-400">
+            <AlertCircle className="h-5 w-5 shrink-0 text-red-500" />
+            <p className="font-light">
+              Alert: Workspace contains <strong>{stats.overdueCount}</strong> overdue task{stats.overdueCount !== 1 ? "s" : ""} requiring prompt assignee followups.
+            </p>
+            <Link href="/projects" className="ml-auto text-xs font-medium text-red-400 underline underline-offset-4">
+              Address tasks
+            </Link>
+          </div>
+        </Section>
+      )}
+
+      {/* FIGMA STAT CARDS ROW (4 Columns) */}
+      <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+        <FigmaStatCard
+          label="Total Workspace Tasks"
+          value={stats.totalTasks}
+          icon={ListTodo}
+          color="text-blue-500"
+          i={0}
+        />
+        <FigmaStatCard
+          label="Active Client Projects"
+          value={stats.totalProjects}
+          icon={FolderKanban}
+          color="text-amber-500"
+          i={1}
+        />
+        <FigmaStatCard
+          label="Completed Tasks"
+          value={stats.doneCount}
+          icon={CheckCircle2}
+          color="text-[#CAFF33]"
+          i={2}
+        />
+        <FigmaStatCard
+          label="Pending & In Progress"
+          value={stats.inProgressCount + stats.todoCount}
+          icon={Clock}
+          color="text-violet-500"
+          i={3}
+        />
+      </div>
+
+      {/* FIGMA MIDDLE ROW: LINE CHART & DOUGHNUT */}
+      <div className="grid gap-6 grid-cols-1 lg:grid-cols-12">
+        
+        {/* Left Column: Line Chart (Figma Orders Analytics) */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.25 }}
+          whileHover={{ boxShadow: "0 8px 30px rgba(0,0,0,0.15)" }}
+          className="lg:col-span-8 bg-[#1C1C1C] border border-[#262626] rounded-2xl p-5 xl:p-6 space-y-6 flex flex-col justify-between shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
+          <div className="flex items-center justify-between flex-wrap gap-4 border-b border-[#262626] pb-4">
+            <h2 className="text-base xl:text-lg font-medium text-white tracking-tight">
+              Workspace Activity Analytics
+            </h2>
+            {/* Chart Legend */}
+            <div className="flex items-center gap-6 text-xs flex-wrap">
+              <div className="flex items-center gap-1.5 text-zinc-400">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#818cf8]" />
+                <span>Tasks Created</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Area Chart visualization */}
+          <div className="h-[250px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData} margin={{ left: -10, right: 10, top: 10, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="createdGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#818cf8" stopOpacity={0.2} />
+                    <stop offset="100%" stopColor="#818cf8" stopOpacity={0.0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#262626" vertical={false} />
+                <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#71717a" }} tickLine={false} axisLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: "#71717a" }} tickLine={false} axisLine={false} allowDecimals={false} />
+                <Tooltip 
+                  contentStyle={{ background: "#1C1C1C", border: "1px solid #333333", borderRadius: "12px", fontSize: "12px", color: "#f4f4f5" }}
+                  itemStyle={{ color: "#CAFF33" }}
+                  labelClassName="font-medium text-white mb-1"
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="created" 
+                  stroke="#818cf8" 
+                  strokeWidth={2.5} 
+                  fill="url(#createdGrad)"
+                  dot={{ fill: "#818cf8", r: 3, strokeWidth: 0 }}
+                  activeDot={{ r: 5, fill: "#6366f1", strokeWidth: 0 }}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </motion.div>
+
+        {/* Right Column: Doughnut Chart (Figma Earnings) */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.35 }}
+          whileHover={{ boxShadow: "0 8px 30px rgba(0,0,0,0.15)" }}
+          className="lg:col-span-4 bg-[#1C1C1C] border border-[#262626] rounded-2xl p-5 xl:p-6 flex flex-col justify-between shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
+          <div className="flex items-center justify-between border-b border-[#262626] pb-4">
+            <h2 className="text-base xl:text-lg font-medium text-white tracking-tight">
+              Completion Progress
+            </h2>
+            <button className="text-zinc-500 hover:text-white transition-colors">
+              <MoreHorizontal className="h-4.5 w-4.5" />
+            </button>
+          </div>
+
+          {/* Recharts Doughnut Pie */}
+          <div className="relative h-[200px] w-full flex items-center justify-center">
+            {statusData.length === 0 ? (
+              <p className="text-sm text-zinc-500">No active tasks</p>
+            ) : (
+              <>
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie 
+                      data={statusData} 
+                      cx="50%" 
+                      cy="50%" 
+                      innerRadius={65} 
+                      outerRadius={85} 
+                      paddingAngle={4} 
+                      dataKey="value"
+                      isAnimationActive={true} 
+                      animationDuration={1000}
+                    >
+                      {statusData.map((entry, idx) => (
+                        <Cell key={idx} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip contentStyle={{ background: "#1A1A1A", border: "1px solid #333333", borderRadius: "10px", fontSize: "12px", color: "#f4f4f5" }} />
+                  </PieChart>
+                </ResponsiveContainer>
+                {/* Centered value indicator */}
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="text-3xl font-semibold text-white tracking-tight font-lexend">
+                    {stats.completionRate}%
+                  </span>
+                  <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-light mt-0.5">
+                    Completed
+                  </span>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Legends with customized status dots */}
+          <div className="flex flex-wrap justify-center gap-x-4 gap-y-1.5 pt-2 text-xs">
+            {statusData.map((item) => (
+              <div key={item.name} className="flex items-center gap-1.5 text-zinc-400">
+                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                <span>{item.name}: <strong className="text-white font-medium">{item.value}</strong></span>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+
+      </div>
+
+      {/* FIGMA BOTTOM ROW: TASK LIST TABLE */}
+      <Section delay={0.6}>
+        <motion.div
+          whileHover={{ boxShadow: "0 8px 30px rgba(0,0,0,0.15)" }}
+          className="bg-[#1C1C1C] border border-[#262626] rounded-2xl p-5 xl:p-6 space-y-6 shadow-[0_1px_3px_rgba(0,0,0,0.02)] overflow-hidden"
+        >
+          
+          <div className="flex items-center justify-between border-b border-[#262626] pb-4">
+            <div>
+              <h2 className="text-base xl:text-lg font-medium text-white tracking-tight">
+                Workspace Task List
+              </h2>
+              <p className="text-xs text-zinc-500 font-light mt-1">Listing recently created organization tickets</p>
+            </div>
+            <div className="relative">
+              <motion.div
+                whileHover={{ borderColor: "#52525b" }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setDateFilterOpen(!dateFilterOpen)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1A1A1A] border border-[#262626] rounded-lg cursor-pointer hover:border-zinc-700 text-xs"
+              >
+                <span className="text-zinc-300 font-light">
+                  {dateFilter === "all" ? "All Time" : dateFilter === "today" ? "Today" : dateFilter === "week" ? "This Week" : dateFilter === "month" ? "This Month" : "Custom"}
+                </span>
+                <ChevronDown className="h-3.5 w-3.5 text-zinc-500" />
+              </motion.div>
+              {dateFilterOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="absolute right-0 top-full mt-1 z-20 w-44 bg-[#1C1C1C] border border-[#262626] rounded-xl p-1.5 shadow-xl"
+                >
+                  {[
+                    { value: "all", label: "All Time" },
+                    { value: "today", label: "Today" },
+                    { value: "week", label: "This Week" },
+                    { value: "month", label: "This Month" },
+                    { value: "custom", label: "Custom Range" },
+                  ].map((opt) => (
+                    <button
+                      key={opt.value}
+                      onClick={() => { setDateFilter(opt.value); if (opt.value !== "custom") setDateFilterOpen(false) }}
+                      className={`w-full text-left px-3 py-1.5 rounded-lg text-xs transition-colors ${
+                        dateFilter === opt.value ? "bg-[#CAFF33]/10 text-[#CAFF33]" : "text-zinc-400 hover:text-white hover:bg-[#262626]"
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                  {dateFilter === "custom" && (
+                    <div className="border-t border-[#262626] mt-1.5 pt-1.5 px-1 space-y-1.5">
+                      <input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)}
+                        className="w-full bg-[#262626] border border-[#333] rounded-lg px-2 py-1 text-xs text-white"
+                      />
+                      <input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)}
+                        className="w-full bg-[#262626] border border-[#333] rounded-lg px-2 py-1 text-xs text-white"
+                      />
+                      <button
+                        onClick={() => setDateFilterOpen(false)}
+                        className="w-full text-center px-2 py-1 rounded-lg text-xs bg-[#CAFF33] text-[#1A1A1A] font-medium"
+                      >
+                        Apply
+                      </button>
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </div>
+          </div>
+
+          {/* Table display */}
+          <div className="overflow-x-auto">
+            {tasks.length === 0 ? (
+              <div className="text-center py-12 text-zinc-500 font-light text-sm">
+                No active workspace tasks. Start by creating a project and task.
+              </div>
+            ) : (
+              <table className="w-full text-left border-collapse min-w-[900px]">
+                <thead>
+                  <tr className="border-b border-[#262626] text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                    <th className="pb-4 pl-2 w-[6%]">No</th>
+                    <th className="pb-4 w-[12%]">Task ID</th>
+                    <th className="pb-4 w-[12%]">Date Created</th>
+                    <th className="pb-4 w-[20%]">Task Title</th>
+                    <th className="pb-4 w-[18%]">Assignee</th>
+                    <th className="pb-4 w-[14%]">Project</th>
+                    <th className="pb-4 w-[10%]">Urgency</th>
+                    <th className="pb-4 w-[10%]">Status</th>
+                    <th className="pb-4 pr-2 w-[6%] text-center">Action</th>
+                  </tr>
+                </thead>
+                <motion.tbody
+                  variants={staggerContainer}
+                  initial="hidden"
+                  animate="visible"
+                  className="divide-y divide-[#262626]/40 text-xs font-light text-zinc-300"
+                >
+                  {filteredTasks.slice(0, 5).map((t, idx) => {
+                    const statusDot = STATUS_COLORS[t.status] || "#a1a1aa"
+                    return (
+                      <motion.tr
+                        key={t.id}
+                        variants={staggerItem}
+                        whileHover={{ backgroundColor: "rgba(26,26,26,0.6)" }}
+                        className="transition-colors"
+                      >
+                        <td className="py-4 pl-2 font-normal text-white">{idx + 1}</td>
+                        <td className="py-4 font-mono font-medium text-[#CAFF33]">#FT-{t.id.slice(-5).toUpperCase()}</td>
+                        <td className="py-4 text-zinc-400">
+                          {new Date(t.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                        </td>
+                        <td className="py-4 font-medium text-white truncate max-w-[200px]">{t.title}</td>
+                        <td className="py-4">
+                          <div className="flex items-center gap-2">
+                            <div className="w-5 h-5 rounded-full bg-zinc-800 text-[9px] font-bold text-zinc-400 flex items-center justify-center shrink-0">
+                              {(t.assignee?.name || "?")[0].toUpperCase()}
+                            </div>
+                            <span className="truncate max-w-[120px]">{t.assignee?.name || "Unassigned"}</span>
+                          </div>
+                        </td>
+                        <td className="py-4">
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: t.projectColor }} />
+                            <span className="truncate max-w-[100px] text-zinc-400">{t.projectName}</span>
+                          </div>
+                        </td>
+                        <td className="py-4 font-medium" style={{ color: PRIORITY_COLORS[t.priority] || "#a1a1aa" }}>
+                          {t.priority.toUpperCase()}
+                        </td>
+                        <td className="py-4">
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#1C1C1C] border border-[#262626] shadow-sm">
+                            <span className="w-1.5 h-1.5 rounded-full shrink-0 animate-pulse" style={{ backgroundColor: statusDot }} />
+                            <span className="text-[10px] text-zinc-300 font-normal">
+                              {t.status === "todo" ? "To Do" : t.status === "in_progress" ? "In Progress" : "Done"}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-4 pr-2 text-center text-zinc-500 hover:text-white transition-colors cursor-pointer">
+                          <MoreHorizontal className="h-4 w-4 mx-auto" />
+                        </td>
+                      </motion.tr>
+                    )
+                  })}
+                </motion.tbody>
+              </table>
+            )}
+          </div>
+
+        </motion.div>
+      </Section>
+
+      {/* TEAM WORKLOAD & PROJECTS ROW */}
+      <div className="grid gap-6 grid-cols-1 lg:grid-cols-12">
+        
+        {/* Left Column: Team Workload */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.5 }}
+          whileHover={{ boxShadow: "0 8px 30px rgba(0,0,0,0.15)" }}
+          className="lg:col-span-6 bg-[#1C1C1C] border border-[#262626] rounded-2xl p-5 xl:p-6 space-y-5 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
+          <div className="flex items-center gap-2 border-b border-[#262626] pb-4">
+            <Users className="h-4.5 w-4.5 text-[#CAFF33]" />
+            <h2 className="text-base font-medium text-white tracking-tight">Team Workload Distribution</h2>
+          </div>
+          
+          {memberWorkload.length === 0 ? (
+            <p className="text-sm text-zinc-500 py-4 text-center">No active team members.</p>
+          ) : (
+            <motion.div
+              variants={staggerContainer}
+              initial="hidden"
+              animate="visible"
+              className="space-y-4"
+            >
+              {memberWorkload.map((m) => {
+                const rate = m.totalTasks > 0 ? Math.round((m.doneTasks / m.totalTasks) * 100) : 0
+                return (
+                  <motion.div key={m.id} variants={staggerItem} className="space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-6 h-6 rounded-full bg-zinc-800 text-[10px] font-bold text-zinc-400 flex items-center justify-center shrink-0">
+                          {m.name[0].toUpperCase()}
+                        </div>
+                        <span className="font-normal text-white truncate max-w-[150px]">{m.name}</span>
+                      </div>
+                      <span className="text-zinc-500 shrink-0">{m.doneTasks}/{m.totalTasks} resolved</span>
+                    </div>
+                    <div className="h-2 w-full bg-[#1A1A1A] border border-[#262626] rounded-full overflow-hidden">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        whileInView={{ width: `${rate}%` }}
+                        viewport={{ once: true }}
+                        transition={{ type: "spring", stiffness: 80, damping: 15, delay: 0.1 }}
+                        className="h-full rounded-full bg-[#CAFF33] shadow-[0_0_8px_rgba(202,255,51,0.2)]"
+                      />
+                    </div>
+                  </motion.div>
+                )
+              })}
+            </motion.div>
+          )}
+        </motion.div>
+
+        {/* Right Column: Recent Activity */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.55 }}
+          whileHover={{ boxShadow: "0 8px 30px rgba(0,0,0,0.15)" }}
+          className="lg:col-span-6 bg-[#1C1C1C] border border-[#262626] rounded-2xl p-5 xl:p-6 space-y-5 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
+          <div className="flex items-center gap-2 border-b border-[#262626] pb-4">
+            <Activity className="h-4.5 w-4.5 text-[#CAFF33]" />
+            <h2 className="text-base font-medium text-white tracking-tight">Recent Activity Stream</h2>
+          </div>
+          
+          {activities.length === 0 ? (
+            <p className="text-sm text-zinc-500 py-4 text-center">No activity logged.</p>
+          ) : (
+            <motion.div
+              variants={staggerContainer}
+              initial="hidden"
+              animate="visible"
+              className="space-y-3 max-h-[220px] overflow-y-auto pr-1"
+            >
+              {activities.slice(0, 4).map((a) => (
+                <motion.div key={a.id} variants={staggerItem} whileHover={{ x: 4 }} className="flex items-center gap-3 text-xs">
+                  <div className="w-6 h-6 rounded-full bg-zinc-800 text-[9px] font-bold text-zinc-400 flex items-center justify-center shrink-0">
+                    {(a.user.name || a.user.email || "?")[0].toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className="font-medium text-white truncate max-w-[120px] inline-block align-bottom">{a.user.name || a.user.email}</span>{" "}
+                    <span className="text-zinc-500">{formatActivityAction(a)}</span>
+                  </div>
+                  <span className="text-[10px] text-zinc-600 shrink-0 font-light">{formatRelativeTime(a.createdAt)}</span>
+                </motion.div>
+              ))}
+            </motion.div>
+          )}
+        </motion.div>
+
+      </div>
+
+    </div>
+  )
+}
+
+// ----------------------------------------------------
+// 3. MEMBER DASHBOARD VIEW (Redesigned per Figma mockups)
+// ----------------------------------------------------
 function MemberDashboard({
   projects,
   myProjects,
@@ -192,731 +837,328 @@ function MemberDashboard({
   orgName: string
   user: { name: string; email: string; image: string | null }
 }) {
+  const [unreadCount, setUnreadCount] = useState(0)
+
+  useEffect(() => {
+    fetch("/api/notifications/unread-count").then((r) => r.json()).then((d) => setUnreadCount(d.count)).catch(() => {})
+    const interval = setInterval(() => {
+      fetch("/api/notifications/unread-count").then((r) => r.json()).then((d) => setUnreadCount(d.count)).catch(() => {})
+    }, 10000)
+    return () => clearInterval(interval)
+  }, [])
+
   const totalMyTasks = stats.myTodoCount + stats.myInProgressCount + stats.myDoneCount
-  const personalRate = totalMyTasks > 0 ? Math.round((stats.myDoneCount / totalMyTasks) * 100) : 0
+
+  const memberChartData = stats.tasksByDay.length > 0 ? stats.tasksByDay : [{ date: "No data", created: 0 }]
+
+  const memberStatusData = [
+    { name: "To Do", value: stats.myTodoCount, color: "#4b5563" },
+    { name: "In Progress", value: stats.myInProgressCount, color: "#f59e0b" },
+    { name: "Completed", value: stats.myDoneCount, color: "#CAFF33" },
+  ].filter((item) => item.value > 0)
 
   return (
-    <div className="p-6 space-y-8">
-      {/* Header */}
+    <div className="p-6 space-y-8 bg-[#1A1A1A] min-h-screen text-white font-lexend">
+      
+      {/* HEADER ROW */}
       <Section delay={0}>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-[#262626]">
+          <div className="space-y-1">
+            <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-white leading-tight">
+              Welcome back, {user.name.split(" ")[0]}
+            </h1>
+            <p className="text-xs font-light text-zinc-500">{orgName} Member Portal</p>
+          </div>
+          
+          {/* Actions */}
+          <div className="flex items-center gap-4 self-end sm:self-center">
+            <Link href="/activity">
+              <motion.div
+                whileHover={{ scale: 1.05, borderColor: "#52525b" }}
+                whileTap={{ scale: 0.9 }}
+                animate={stats.myOverdueCount > 0 ? { rotate: [0, -12, 12, -10, 10, -6, 6, -3, 3, 0] } : {}}
+                transition={{ duration: 0.6, ease: "easeInOut" }}
+                className="relative p-2 bg-[#1C1C1C] border border-[#262626] rounded-xl cursor-pointer text-zinc-300 hover:text-white transition-colors"
+              >
+                <Bell className="h-4.5 w-4.5" />
+                {unreadCount > 0 && (
+                  <motion.span
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: "spring", stiffness: 500, damping: 20 }}
+                    className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full bg-red-500 text-[9px] font-bold text-white flex items-center justify-center px-1"
+                  >
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </motion.span>
+                )}
+              </motion.div>
+            </Link>
+
+            <Link href="/profile">
+              <motion.div
+                whileHover={{ borderColor: "#52525b" }}
+                whileTap={{ scale: 0.97 }}
+                className="flex items-center gap-2 px-3 py-1.5 bg-[#1C1C1C] border border-[#262626] rounded-xl cursor-pointer"
+              >
+                <div className="h-6 w-6 rounded-full bg-zinc-700 flex items-center justify-center overflow-hidden shrink-0 text-xs text-white">
+                  {user.image ? (
+                    <img src={user.image} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <span>{user.name[0].toUpperCase()}</span>
+                  )}
+                </div>
+                <span className="text-xs font-light truncate max-w-[80px] text-zinc-300">{user.name.split(" ")[0]}</span>
+                <ChevronDown className="h-3 w-3 text-zinc-500 shrink-0" />
+              </motion.div>
+            </Link>
+          </div>
+        </div>
+      </Section>
+
+      {/* OVERDUE ALERTS */}
+      {stats.myOverdueCount > 0 && (
+        <Section delay={0.03}>
+          <div className="flex items-center gap-3 rounded-xl border border-red-500/20 bg-red-950/20 px-5 py-3.5 text-sm text-red-400">
+            <AlertCircle className="h-5 w-5 shrink-0 text-red-500" />
+            <p className="font-light">
+              Attention: You have <strong>{stats.myOverdueCount}</strong> overdue task{stats.myOverdueCount !== 1 ? "s" : ""} pending completion.
+            </p>
+            <Link href="/my-tasks" className="ml-auto text-xs font-medium text-red-400 underline underline-offset-4">
+              View my tasks
+            </Link>
+          </div>
+        </Section>
+      )}
+
+      {/* FIGMA MEMBER STAT CARDS */}
+      <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+        <FigmaStatCard
+          label="My Assigned Tasks"
+          value={totalMyTasks}
+          icon={ListTodo}
+          color="text-blue-500"
+          i={0}
+        />
+        <FigmaStatCard
+          label="Tasks To Do"
+          value={stats.myTodoCount}
+          icon={Clock}
+          color="text-zinc-400"
+          i={1}
+        />
+        <FigmaStatCard
+          label="Tasks In Progress"
+          value={stats.myInProgressCount}
+          icon={TrendingUp}
+          color="text-amber-500"
+          i={2}
+        />
+        <FigmaStatCard
+          label="Completed Tasks"
+          value={stats.myDoneCount}
+          icon={CheckCircle2}
+          color="text-[#CAFF33]"
+          i={3}
+        />
+      </div>
+
+      {/* FIGMA MIDDLE ROW: LINE CHART & DOUGHNUT */}
+      <div className="grid gap-6 grid-cols-1 lg:grid-cols-12">
+        
+        {/* Line Chart Progress */}
         <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5 }}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.25 }}
+          whileHover={{ boxShadow: "0 8px 30px rgba(0,0,0,0.15)" }}
+          className="lg:col-span-8 bg-[#1C1C1C] border border-[#262626] rounded-2xl p-5 xl:p-6 space-y-6 flex flex-col justify-between shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
+          <div className="flex items-center justify-between flex-wrap gap-4 border-b border-[#262626] pb-4">
+            <h2 className="text-base xl:text-lg font-medium text-white tracking-tight">
+              My Created Tasks
+            </h2>
+            <div className="flex items-center gap-1.5 text-xs text-zinc-400">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#818cf8]" />
+              <span>Tasks Created</span>
+            </div>
+          </div>
+
+          <div className="h-[250px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={memberChartData} margin={{ left: -10, right: 10, top: 10, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="memberCreatedGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#818cf8" stopOpacity={0.2} />
+                    <stop offset="100%" stopColor="#818cf8" stopOpacity={0.0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#262626" vertical={false} />
+                <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#71717a" }} tickLine={false} axisLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: "#71717a" }} tickLine={false} axisLine={false} allowDecimals={false} />
+                <Tooltip contentStyle={{ background: "#1C1C1C", border: "1px solid #333333", borderRadius: "12px", fontSize: "12px", color: "#f4f4f5" }} />
+                <Area 
+                  type="monotone" 
+                  dataKey="created" 
+                  stroke="#818cf8" 
+                  strokeWidth={2.5} 
+                  fill="url(#memberCreatedGrad)"
+                  dot={{ fill: "#818cf8", r: 3, strokeWidth: 0 }}
+                  activeDot={{ r: 5, fill: "#6366f1", strokeWidth: 0 }}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </motion.div>
+
+        {/* Doughnut distribution */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.35 }}
+          whileHover={{ boxShadow: "0 8px 30px rgba(0,0,0,0.15)" }}
+          className="lg:col-span-4 bg-[#1C1C1C] border border-[#262626] rounded-2xl p-5 xl:p-6 flex flex-col justify-between shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
+          <div className="flex items-center justify-between border-b border-[#262626] pb-4">
+            <h2 className="text-base xl:text-lg font-medium text-white tracking-tight">
+              My Task States
+            </h2>
+          </div>
+
+          <div className="relative h-[200px] w-full flex items-center justify-center">
+            {memberStatusData.length === 0 ? (
+              <p className="text-sm text-zinc-500">No active tasks</p>
+            ) : (
+              <>
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie 
+                      data={memberStatusData} 
+                      cx="50%" 
+                      cy="50%" 
+                      innerRadius={65} 
+                      outerRadius={85} 
+                      paddingAngle={4} 
+                      dataKey="value"
+                      isAnimationActive={true} 
+                      animationDuration={1000}
+                    >
+                      {memberStatusData.map((entry, idx) => (
+                        <Cell key={idx} fill={entry.color} />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+                {/* Value */}
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="text-3xl font-semibold text-white tracking-tight font-lexend">
+                    {stats.myTodoCount + stats.myInProgressCount > 0 ? Math.round((stats.myDoneCount / totalMyTasks) * 100) : 100}%
+                  </span>
+                  <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-light mt-0.5">
+                    Rate
+                  </span>
+                </div>
+              </>
+            )}
+          </div>
+
+          <div className="flex justify-center gap-3 text-xs flex-wrap">
+            {memberStatusData.map((item) => (
+              <div key={item.name} className="flex items-center gap-1.5 text-zinc-400">
+                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                <span>{item.name}: {item.value}</span>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+
+      </div>
+
+      {/* FIGMA BOTTOM ROW: MY UPCOMING TASKS */}
+      <Section delay={0.65}>
+        <motion.div
+          whileHover={{ boxShadow: "0 8px 30px rgba(0,0,0,0.15)" }}
+          className="bg-[#1C1C1C] border border-[#262626] rounded-2xl p-5 xl:p-6 space-y-6 shadow-[0_1px_3px_rgba(0,0,0,0.02)]"
         >
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-zinc-200 flex items-center justify-center overflow-hidden dark:bg-zinc-700">
-              {user.image ? (
-                <img src={user.image} alt="" className="h-full w-full object-cover" />
-              ) : (
-                <span className="text-sm font-bold text-zinc-500">
-                  {user.name[0].toUpperCase()}
-                </span>
-              )}
-            </div>
+          <div className="border-b border-[#262626] pb-4 flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold tracking-tight">
-                Welcome back, {user.name.split(" ")[0]}
-              </h1>
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">{orgName}</p>
+              <h2 className="text-base xl:text-lg font-medium text-white tracking-tight">
+                My Upcoming Deadlines
+              </h2>
+              <p className="text-xs text-zinc-500 font-light mt-1">Listing pending tickets assigned to you with approaching milestones</p>
             </div>
+            <motion.a
+              href="/my-tasks"
+              whileHover={{ x: 3 }}
+              whileTap={{ scale: 0.95 }}
+              className="text-xs text-[#CAFF33] hover:underline hover:text-[#d8ff5c]"
+            >
+              Go to Taskboard →
+            </motion.a>
+          </div>
+
+          <div className="overflow-x-auto">
+            {myUpcomingTasks.length === 0 ? (
+              <p className="text-sm text-zinc-500 text-center py-6">You have no upcoming task deadlines.</p>
+            ) : (
+              <table className="w-full text-left border-collapse min-w-[700px]">
+                <thead>
+                  <tr className="border-b border-[#262626] text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                    <th className="pb-3 pl-2">No</th>
+                    <th className="pb-3">Task Title</th>
+                    <th className="pb-3">Project</th>
+                    <th className="pb-3">Priority</th>
+                    <th className="pb-3">Due Date</th>
+                    <th className="pb-3 pr-2 text-center">Action</th>
+                  </tr>
+                </thead>
+                <motion.tbody
+                  variants={staggerContainer}
+                  initial="hidden"
+                  animate="visible"
+                  className="divide-y divide-[#262626]/40 text-xs font-light text-zinc-300"
+                >
+                  {myUpcomingTasks.map((t, idx) => {
+                    const isOverdue = new Date(t.dueDate) < new Date()
+                    return (
+                      <motion.tr
+                        key={t.id}
+                        variants={staggerItem}
+                        whileHover={{ backgroundColor: "rgba(26,26,26,0.6)" }}
+                        className="transition-colors"
+                      >
+                        <td className="py-3.5 pl-2 font-normal text-white">{idx + 1}</td>
+                        <td className="py-3.5 font-medium text-white">{t.title}</td>
+                        <td className="py-3.5">
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: t.projectColor }} />
+                            <span className="truncate max-w-[120px] text-zinc-400">{t.projectName}</span>
+                          </div>
+                        </td>
+                        <td className="py-3.5 font-medium" style={{ color: PRIORITY_COLORS[t.priority.toLowerCase()] || "#a1a1aa" }}>
+                          {t.priority.toUpperCase()}
+                        </td>
+                        <td className={`py-3.5 font-medium ${isOverdue ? "text-red-500" : "text-zinc-400"}`}>
+                          {isOverdue ? "Overdue: " : ""}
+                          {new Date(t.dueDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                        </td>
+                        <td className="py-3.5 pr-2 text-center text-zinc-500 hover:text-white transition-colors cursor-pointer">
+                          <MoreHorizontal className="h-4 w-4 mx-auto" />
+                        </td>
+                      </motion.tr>
+                    )
+                  })}
+                </motion.tbody>
+              </table>
+            )}
           </div>
         </motion.div>
       </Section>
 
-      {/* Alert banner */}
-      {stats.myOverdueCount > 0 && (
-        <Section delay={0.05}>
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-5 py-3 dark:border-red-900 dark:bg-red-950"
-          >
-            <AlertCircle className="h-5 w-5 text-red-500 shrink-0" />
-            <p className="text-sm text-red-700 dark:text-red-300">
-              You have <strong>{stats.myOverdueCount}</strong> overdue task{stats.myOverdueCount !== 1 ? "s" : ""}.{" "}
-              {stats.myDueSoonCount > 0 && (
-                <span><strong>{stats.myDueSoonCount}</strong> due within 7 days.</span>
-              )}
-            </p>
-            <Link href="/projects" className="ml-auto text-xs font-medium text-red-700 underline underline-offset-2 dark:text-red-300">
-              View tasks
-            </Link>
-          </motion.div>
-        </Section>
-      )}
-
-      {stats.myDueSoonCount > 0 && stats.myOverdueCount === 0 && (
-        <Section delay={0.05}>
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-5 py-3 dark:border-amber-900 dark:bg-amber-950"
-          >
-            <Calendar className="h-5 w-5 text-amber-500 shrink-0" />
-            <p className="text-sm text-amber-700 dark:text-amber-300">
-              <strong>{stats.myDueSoonCount}</strong> task{stats.myDueSoonCount !== 1 ? "s" : ""} due within 7 days
-            </p>
-          </motion.div>
-        </Section>
-      )}
-
-      {/* My Task Progress */}
-      <Section delay={0.1}>
-        <div className="grid gap-6 lg:grid-cols-4">
-          {/* My stat cards */}
-          {([
-            { label: "My Tasks", value: totalMyTasks, icon: ListTodo, color: "text-indigo-500", glow: "#6366f1" },
-            { label: "To Do", value: stats.myTodoCount, icon: Clock, color: "text-zinc-500", glow: "#a1a1aa" },
-            { label: "In Progress", value: stats.myInProgressCount, icon: TrendingUp, color: "text-amber-500", glow: "#f59e0b" },
-            { label: "Completed", value: stats.myDoneCount, icon: CheckCircle2, color: "text-emerald-500", glow: "#10b981" },
-          ] as (StatCardData & { glow: string })[]).map((card, i) => {
-            const Icon = card.icon
-            return (
-              <motion.div
-                key={card.label}
-                initial={{ opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.1 + i * 0.08 }}
-                className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900"
-              >
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-zinc-500">{card.label}</p>
-                  <Icon className={`h-5 w-5 ${card.color}`} />
-                </div>
-                <AnimatedValue value={card.value} className="mt-2 text-3xl font-bold" glow={card.glow} />
-              </motion.div>
-            )
-          })}
-        </div>
-      </Section>
-
-      {/* Personal completion + high priority */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Section delay={0.25}>
-          <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-            <div className="flex items-center gap-2 mb-1">
-              <Target className="h-4 w-4 text-indigo-500" />
-              <h2 className="text-sm font-semibold">My Completion Rate</h2>
-            </div>
-            <div className="flex items-end gap-3">
-              <AnimatedValue value={personalRate} suffix="%" className="text-3xl font-bold text-emerald-500" glow="#10b981" />
-              <p className="text-xs text-zinc-400 mb-1">{stats.myDoneCount} of {totalMyTasks} tasks done</p>
-            </div>
-            {/* Mini progress bar */}
-            <div className="mt-3 h-2 w-full rounded-full bg-zinc-200 dark:bg-zinc-700">
-              <div
-                className="h-2 rounded-full bg-emerald-500 transition-all duration-1000"
-                style={{ width: `${personalRate}%` }}
-              />
-            </div>
-          </div>
-        </Section>
-
-        <Section delay={0.3}>
-          <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-            <div className="flex items-center gap-2 mb-1">
-              <Calendar className="h-4 w-4 text-amber-500" />
-              <h2 className="text-sm font-semibold">Upcoming Deadlines</h2>
-            </div>
-            {myUpcomingTasks.length === 0 ? (
-              <p className="text-sm text-zinc-400 py-3">No upcoming deadlines</p>
-            ) : (
-              <div className="space-y-2 mt-2">
-                {myUpcomingTasks.map((t) => {
-                  const dueDate = new Date(t.dueDate)
-                  const isSoon = dueDate.getTime() - Date.now() < 3 * 24 * 60 * 60 * 1000
-                  return (
-                    <Link
-                      key={t.id}
-                      href={`/projects/${t.projectName.toLowerCase().replace(/\s+/g, "-")}`}
-                      className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
-                    >
-                      <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: t.projectColor }} />
-                      <span className="flex-1 truncate">{t.title}</span>
-                      <PriorityBadge priority={t.priority} />
-                      <span className={`text-xs whitespace-nowrap ${isSoon ? "text-red-500 font-medium" : "text-zinc-400"}`}>
-                        {dueDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                      </span>
-                    </Link>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        </Section>
-      </div>
-
-      {/* My tasks by project + activity */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Section delay={0.35}>
-          <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-            <h2 className="text-sm font-semibold mb-4">My Tasks per Project</h2>
-            {stats.myTasksByProject.length === 0 ? (
-              <p className="text-sm text-zinc-400 text-center py-8">No tasks assigned yet</p>
-            ) : (
-              <ResponsiveContainer width="100%" height={Math.max(180, stats.myTasksByProject.length * 44)}>
-                <AreaChart data={stats.myTasksByProject} margin={{ left: 0, right: 20, top: 5, bottom: 5 }}>
-                  <defs>
-                    <linearGradient id="myTasksWaveGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#818cf8" stopOpacity={0.4} />
-                      <stop offset="100%" stopColor="#818cf8" stopOpacity={0.05} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                  <XAxis dataKey="name" tick={{ fontSize: 12, fill: "#a1a1aa" }} interval={0} angle={-20} textAnchor="end" height={60} />
-                  <YAxis tick={{ fontSize: 12, fill: "#a1a1aa" }} allowDecimals={false} />
-                  <Tooltip contentStyle={{ background: "#18181b", border: "1px solid #27272a", borderRadius: "8px", fontSize: "13px", color: "#f4f4f5" }} />
-                  <Area type="monotone" dataKey="count" stroke="#818cf8" strokeWidth={2.5} fill="url(#myTasksWaveGrad)"
-                    isAnimationActive={true} animationDuration={1200}
-                    dot={{ fill: "#818cf8", r: 3.5, strokeWidth: 0 }}
-                    activeDot={{ r: 6, fill: "#6366f1", strokeWidth: 0 }}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </Section>
-
-        <Section delay={0.4}>
-          <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-            <div className="flex items-center gap-2 mb-4">
-              <Activity className="h-4 w-4 text-indigo-500" />
-              <h2 className="text-sm font-semibold">My Recent Activity</h2>
-            </div>
-            {myActivities.length === 0 && activities.length === 0 ? (
-              <p className="text-sm text-zinc-400 text-center py-6">No activity yet</p>
-            ) : (
-              <div className="space-y-1 max-h-[280px] overflow-y-auto">
-                {(myActivities.length > 0 ? myActivities : activities.slice(0, 5)).map((a, i) => (
-                  <motion.div key={a.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.3, delay: i * 0.04 }}
-                    className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                  >
-                    <div className="h-6 w-6 rounded-full bg-zinc-200 flex items-center justify-center text-[10px] font-medium text-zinc-600 shrink-0 dark:bg-zinc-700 dark:text-zinc-300">
-                      {(a.user.name || a.user.email || "?")[0].toUpperCase()}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <span className="text-zinc-900 dark:text-zinc-100">{a.user.name || a.user.email}</span>{" "}
-                      <span className="text-zinc-500">
-                        {formatActivityAction(a, true)}
-                      </span>
-                    </div>
-                    <span className="text-[11px] text-zinc-400 whitespace-nowrap">
-                      {formatRelativeTime(a.createdAt)}
-                    </span>
-                  </motion.div>
-                ))}
-              </div>
-            )}
-          </div>
-        </Section>
-      </div>
-
-      {/* Status distribution + My Projects */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Section delay={0.45}>
-          <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-            <h2 className="text-sm font-semibold mb-4">My Task Status</h2>
-            {totalMyTasks === 0 ? (
-              <p className="text-sm text-zinc-400 text-center py-8">No tasks assigned yet</p>
-            ) : (
-              <div className="flex items-center justify-center">
-                <ResponsiveContainer width="100%" height={200}>
-                  <PieChart>
-                    <Pie data={[
-                      { name: "To Do", value: stats.myTodoCount, color: STATUS_COLORS.todo },
-                      { name: "In Progress", value: stats.myInProgressCount, color: STATUS_COLORS.in_progress },
-                      { name: "Done", value: stats.myDoneCount, color: STATUS_COLORS.done },
-                    ].filter((d) => d.value > 0)}
-                      cx="50%" cy="50%" innerRadius={55} outerRadius={80} paddingAngle={3} dataKey="value"
-                      isAnimationActive={true} animationDuration={1200}
-                    >
-                      {[stats.myTodoCount, stats.myInProgressCount, stats.myDoneCount]
-                        .filter((v) => v > 0)
-                        .map((_, i) => {
-                          const colors = [STATUS_COLORS.todo, STATUS_COLORS.in_progress, STATUS_COLORS.done].filter((_, j) => {
-                            const vals = [stats.myTodoCount, stats.myInProgressCount, stats.myDoneCount]
-                            return vals[j] > 0
-                          })
-                          return <Cell key={i} fill={colors[i]} />
-                        })}
-                    </Pie>
-                    <Tooltip contentStyle={{ background: "#18181b", border: "1px solid #27272a", borderRadius: "8px", fontSize: "13px", color: "#f4f4f5" }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-            <div className="flex justify-center gap-4 mt-2">
-              {[
-                { name: "To Do", value: stats.myTodoCount, color: STATUS_COLORS.todo },
-                { name: "In Progress", value: stats.myInProgressCount, color: STATUS_COLORS.in_progress },
-                { name: "Done", value: stats.myDoneCount, color: STATUS_COLORS.done },
-              ].filter((d) => d.value > 0).map((item) => (
-                <div key={item.name} className="flex items-center gap-1.5 text-xs text-zinc-500">
-                  <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
-                  {item.name}: {item.value}
-                </div>
-              ))}
-            </div>
-          </div>
-        </Section>
-
-        <Section delay={0.5}>
-          <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-semibold">My Projects</h2>
-              <Link href="/projects" className="text-xs text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100">
-                View all
-              </Link>
-            </div>
-            {myProjects.length === 0 ? (
-              <div className="text-center py-8">
-                <FolderKanban className="mx-auto h-8 w-8 text-zinc-300 dark:text-zinc-600" />
-                <p className="mt-2 text-sm text-zinc-500">Not assigned to any projects yet</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {myProjects.slice(0, 5).map((p) => (
-                  <Link key={p.id} href={`/projects/${p.id}`}
-                    className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
-                  >
-                    <div className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: p.color }} />
-                    <span className="flex-1 font-medium truncate">{p.name}</span>
-                    <span className="text-xs text-zinc-400">{p._count.tasks} tasks</span>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </div>
-        </Section>
-      </div>
-
-      {/* Team activity */}
-      <Section delay={0.55}>
-        <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-          <div className="flex items-center gap-2 mb-3">
-            <Users className="h-4 w-4 text-indigo-500" />
-            <h2 className="text-sm font-semibold">Team Activity</h2>
-          </div>
-          {activities.length === 0 ? (
-            <p className="text-sm text-zinc-400 text-center py-4">No team activity yet</p>
-          ) : (
-            <div className="space-y-1 max-h-[240px] overflow-y-auto">
-              {activities.slice(0, 8).map((a, i) => (
-                <motion.div key={a.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.3, delay: i * 0.03 }}
-                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                >
-                  <div className="h-6 w-6 rounded-full bg-zinc-200 flex items-center justify-center text-[10px] font-medium text-zinc-600 shrink-0 dark:bg-zinc-700 dark:text-zinc-300">
-                    {(a.user.name || a.user.email || "?")[0].toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <span className="text-zinc-900 dark:text-zinc-100">{a.user.name || a.user.email}</span>{" "}
-                    <span className="text-zinc-500">{formatActivityAction(a)}</span>
-                  </div>
-                  <span className="text-[11px] text-zinc-400 whitespace-nowrap">{formatRelativeTime(a.createdAt)}</span>
-                </motion.div>
-              ))}
-            </div>
-          )}
-        </div>
-      </Section>
     </div>
   )
 }
 
-// ─── ADMIN DASHBOARD ─────────────────────────────────────────────────────────
-
-function AdminDashboard({
-  projects,
-  stats,
-  activities,
-  memberWorkload,
-  orgName,
-}: {
-  projects: ProjectSummary[]
-  stats: Stats
-  activities: ActivityType[]
-  memberWorkload: MemberWorkload[]
-  orgName: string
-}) {
-  const statusData = [
-    { name: "To Do", value: stats.todoCount, color: STATUS_COLORS.todo },
-    { name: "In Progress", value: stats.inProgressCount, color: STATUS_COLORS.in_progress },
-    { name: "Done", value: stats.doneCount, color: STATUS_COLORS.done },
-  ].filter((d) => d.value > 0)
-
-  const priorityData = [
-    { name: "Low", value: stats.lowPriority, color: PRIORITY_COLORS.low },
-    { name: "Medium", value: stats.mediumPriority, color: PRIORITY_COLORS.medium },
-    { name: "High", value: stats.highPriority, color: PRIORITY_COLORS.high },
-    { name: "Urgent", value: stats.urgentPriority, color: PRIORITY_COLORS.urgent },
-  ].filter((d) => d.value > 0)
-
-  const showAlerts = stats.overdueCount > 0 || stats.dueSoonCount > 0
-
-  return (
-    <div className="p-6 space-y-8">
-      {/* Header */}
-      <Section delay={0}>
-        <div className="flex items-center justify-between">
-          <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5 }}>
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900">
-                <Activity className="h-5 w-5" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold tracking-tight">{orgName}</h1>
-                <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                  Workspace overview · {stats.memberCount} member{stats.memberCount !== 1 ? "s" : ""}
-                </p>
-              </div>
-            </div>
-          </motion.div>
-          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5, delay: 0.2 }}>
-            <Link
-              href="/projects/new"
-              className="inline-flex items-center gap-2 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
-            >
-              <Plus className="h-4 w-4" />
-              New Project
-            </Link>
-          </motion.div>
-        </div>
-      </Section>
-
-      {/* Alerts */}
-      {showAlerts && (
-        <Section delay={0.05}>
-          <div className="flex gap-4 flex-wrap">
-            {stats.overdueCount > 0 && (
-              <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}
-                className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm dark:border-red-900 dark:bg-red-950"
-              >
-                <AlertCircle className="h-5 w-5 text-red-500 shrink-0" />
-                <span className="text-red-700 dark:text-red-300"><strong>{stats.overdueCount}</strong> overdue across team</span>
-              </motion.div>
-            )}
-            {stats.dueSoonCount > 0 && (
-              <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}
-                className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm dark:border-amber-900 dark:bg-amber-950"
-              >
-                <Calendar className="h-5 w-5 text-amber-500 shrink-0" />
-                <span className="text-amber-700 dark:text-amber-300"><strong>{stats.dueSoonCount}</strong> due within 7 days</span>
-              </motion.div>
-            )}
-          </div>
-        </Section>
-      )}
-
-      {/* Stat cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {([
-          { label: "Total Projects", value: stats.totalProjects, icon: FolderKanban, color: "text-indigo-500", glow: "#6366f1" },
-          { label: "Total Tasks", value: stats.totalTasks, icon: ListTodo, color: "text-blue-500", glow: "#3b82f6" },
-          { label: "In Progress", value: stats.inProgressCount, icon: Clock, color: "text-amber-500", glow: "#f59e0b" },
-          { label: "Completed", value: stats.doneCount, icon: CheckCircle2, color: "text-emerald-500", glow: "#10b981" },
-          { label: "Team Members", value: stats.memberCount, icon: Users, color: "text-violet-500", glow: "#8b5cf6" },
-          { label: "Overdue", value: stats.overdueCount, icon: AlertCircle, color: "text-red-500", glow: "#ef4444" },
-        ] as (StatCardData & { glow: string })[]).map((card, i) => {
-          const Icon = card.icon
-          return (
-            <motion.div
-              key={card.label}
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.1 + i * 0.06 }}
-              className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900"
-            >
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-zinc-500 dark:text-zinc-400">{card.label}</p>
-                <Icon className={`h-5 w-5 ${card.color}`} />
-              </div>
-              <AnimatedValue value={card.value} className="mt-2 text-3xl font-bold" glow={card.glow} />
-            </motion.div>
-          )
-        })}
-      </div>
-
-      {/* Metric cards */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Section delay={0.4}>
-          <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-            <div className="flex items-center gap-2 mb-1">
-              <TrendingUp className="h-4 w-4 text-indigo-500" />
-              <h2 className="text-sm font-semibold">Completion Rate</h2>
-            </div>
-            <AnimatedValue value={stats.completionRate} suffix="%" className="text-3xl font-bold text-emerald-500" glow="#10b981" />
-            <p className="text-xs text-zinc-400 mt-1">{stats.doneCount} of {stats.totalTasks} tasks done</p>
-            <div className="mt-3 h-2 w-full rounded-full bg-zinc-200 dark:bg-zinc-700">
-              <div className="h-2 rounded-full bg-emerald-500 transition-all duration-1000" style={{ width: `${stats.completionRate}%` }} />
-            </div>
-          </div>
-        </Section>
-
-        <Section delay={0.45}>
-          <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-            <div className="flex items-center gap-2 mb-1">
-              <AlertTriangle className="h-4 w-4 text-red-500" />
-              <h2 className="text-sm font-semibold">High Priority Tasks</h2>
-            </div>
-            <AnimatedValue value={stats.highPriority + stats.urgentPriority} className="text-3xl font-bold text-red-500" glow="#ef4444" />
-            <p className="text-xs text-zinc-400 mt-1">{stats.highPriority} high, {stats.urgentPriority} urgent</p>
-          </div>
-        </Section>
-      </div>
-
-      {/* Charts row */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Section delay={0.5}>
-          <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-            <h2 className="text-sm font-semibold mb-4">Status Distribution</h2>
-            {statusData.length === 0 ? (
-              <p className="text-sm text-zinc-400 text-center py-8">No tasks yet</p>
-            ) : (
-              <div className="flex items-center justify-center">
-                <ResponsiveContainer width="100%" height={220}>
-                  <PieChart>
-                    <Pie data={statusData} cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={3} dataKey="value"
-                      isAnimationActive={true} animationDuration={1200}
-                    >
-                      {statusData.map((entry, i) => (<Cell key={i} fill={entry.color} />))}
-                    </Pie>
-                    <Tooltip contentStyle={{ background: "#18181b", border: "1px solid #27272a", borderRadius: "8px", fontSize: "13px", color: "#f4f4f5" }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-            <div className="flex justify-center gap-4 mt-2">
-              {statusData.map((item) => (
-                <div key={item.name} className="flex items-center gap-1.5 text-xs text-zinc-500">
-                  <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
-                  {item.name}: {item.value}
-                </div>
-              ))}
-            </div>
-          </div>
-        </Section>
-
-        <Section delay={0.55}>
-          <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-            <h2 className="text-sm font-semibold mb-4">Priority Distribution</h2>
-            {priorityData.length === 0 ? (
-              <p className="text-sm text-zinc-400 text-center py-8">No tasks yet</p>
-            ) : (
-              <div className="flex items-center justify-center">
-                <ResponsiveContainer width="100%" height={220}>
-                  <PieChart>
-                    <Pie data={priorityData} cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={3} dataKey="value"
-                      isAnimationActive={true} animationDuration={1200}
-                    >
-                      {priorityData.map((entry, i) => (<Cell key={i} fill={entry.color} />))}
-                    </Pie>
-                    <Tooltip contentStyle={{ background: "#18181b", border: "1px solid #27272a", borderRadius: "8px", fontSize: "13px", color: "#f4f4f5" }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-            <div className="flex justify-center gap-4 mt-2">
-              {priorityData.map((item) => (
-                <div key={item.name} className="flex items-center gap-1.5 text-xs text-zinc-500">
-                  <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
-                  {item.name}: {item.value}
-                </div>
-              ))}
-            </div>
-          </div>
-        </Section>
-      </div>
-
-      {/* Charts row 2 */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        {stats.tasksByProject.length > 0 && (
-          <Section delay={0.6}>
-            <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-              <h2 className="text-sm font-semibold mb-4">Tasks per Project</h2>
-              <ResponsiveContainer width="100%" height={Math.max(200, stats.tasksByProject.length * 44)}>
-                <AreaChart data={stats.tasksByProject} margin={{ left: 0, right: 20, top: 5, bottom: 5 }}>
-                  <defs>
-                    <linearGradient id="tasksWaveGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#818cf8" stopOpacity={0.4} />
-                      <stop offset="100%" stopColor="#818cf8" stopOpacity={0.05} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                  <XAxis dataKey="name" tick={{ fontSize: 12, fill: "#a1a1aa" }} interval={0} angle={-20} textAnchor="end" height={60} />
-                  <YAxis tick={{ fontSize: 12, fill: "#a1a1aa" }} allowDecimals={false} />
-                  <Tooltip contentStyle={{ background: "#18181b", border: "1px solid #27272a", borderRadius: "8px", fontSize: "13px", color: "#f4f4f5" }} />
-                  <Area type="monotone" dataKey="count" stroke="#818cf8" strokeWidth={2.5} fill="url(#tasksWaveGrad)"
-                    isAnimationActive={true} animationDuration={1200}
-                    dot={{ fill: "#818cf8", r: 3.5, strokeWidth: 0 }}
-                    activeDot={{ r: 6, fill: "#6366f1", strokeWidth: 0 }}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </Section>
-        )}
-
-        {stats.tasksByDay.some((d) => d.created > 0) && (
-          <Section delay={0.65}>
-            <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-              <h2 className="text-sm font-semibold mb-4">7-Day Activity</h2>
-              <ResponsiveContainer width="100%" height={200}>
-                <AreaChart data={stats.tasksByDay} margin={{ left: 0, right: 20, top: 5, bottom: 5 }}>
-                  <defs>
-                    <linearGradient id="activityWaveGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#818cf8" stopOpacity={0.4} />
-                      <stop offset="100%" stopColor="#818cf8" stopOpacity={0.05} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                  <XAxis dataKey="date" tick={{ fontSize: 12, fill: "#a1a1aa" }} />
-                  <YAxis tick={{ fontSize: 12, fill: "#a1a1aa" }} allowDecimals={false} />
-                  <Tooltip contentStyle={{ background: "#18181b", border: "1px solid #27272a", borderRadius: "8px", fontSize: "13px", color: "#f4f4f5" }} />
-                  <Area type="monotone" dataKey="created" stroke="#818cf8" strokeWidth={2.5} fill="url(#activityWaveGrad)"
-                    isAnimationActive={true} animationDuration={1200}
-                    dot={{ fill: "#818cf8", r: 3.5, strokeWidth: 0 }}
-                    activeDot={{ r: 6, fill: "#6366f1", strokeWidth: 0 }}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </Section>
-        )}
-      </div>
-
-      {/* Team workload */}
-      <Section delay={0.7}>
-        <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-          <div className="flex items-center gap-2 mb-4">
-            <Users className="h-4 w-4 text-indigo-500" />
-            <h2 className="text-sm font-semibold">Team Workload</h2>
-          </div>
-          {memberWorkload.length === 0 ? (
-            <p className="text-sm text-zinc-400 text-center py-6">No team members yet</p>
-          ) : (
-            <div className="space-y-3">
-              {memberWorkload.map((m, i) => {
-                const rate = m.totalTasks > 0 ? Math.round((m.doneTasks / m.totalTasks) * 100) : 0
-                return (
-                  <motion.div key={m.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.3, delay: i * 0.05 }}
-                    className="flex items-center gap-3"
-                  >
-                    <div className="h-8 w-8 rounded-full bg-zinc-200 flex items-center justify-center text-xs font-medium text-zinc-600 shrink-0 dark:bg-zinc-700 dark:text-zinc-300">
-                      {m.name[0].toUpperCase()}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium truncate">{m.name}</span>
-                        <span className="text-xs text-zinc-400 ml-2">{m.doneTasks}/{m.totalTasks} done</span>
-                      </div>
-                      <div className="mt-1 h-1.5 w-full rounded-full bg-zinc-200 dark:bg-zinc-700">
-                        <div
-                          className="h-1.5 rounded-full transition-all duration-700"
-                          style={{ width: `${rate}%`, backgroundColor: rate > 66 ? "#10b981" : rate > 33 ? "#f59e0b" : "#ef4444" }}
-                        />
-                      </div>
-                    </div>
-                  </motion.div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      </Section>
-
-      {/* Recent activity */}
-      <Section delay={0.75}>
-        <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-          <div className="flex items-center gap-2 mb-4">
-            <Activity className="h-4 w-4 text-indigo-500" />
-            <h2 className="text-sm font-semibold">Recent Activity</h2>
-          </div>
-          {activities.length === 0 ? (
-            <p className="text-sm text-zinc-400 text-center py-6">No activity yet. Start by creating a project!</p>
-          ) : (
-            <div className="space-y-1 max-h-[320px] overflow-y-auto">
-              {activities.map((a, i) => (
-                <motion.div key={a.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.3, delay: i * 0.03 }}
-                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                >
-                  <div className="h-6 w-6 rounded-full bg-zinc-200 flex items-center justify-center text-[10px] font-medium text-zinc-600 shrink-0 dark:bg-zinc-700 dark:text-zinc-300">
-                    {(a.user.name || a.user.email || "?")[0].toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <span className="text-zinc-900 dark:text-zinc-100">{a.user.name || a.user.email}</span>{" "}
-                    <span className="text-zinc-500">{formatActivityAction(a)}</span>
-                  </div>
-                  <span className="text-[11px] text-zinc-400 whitespace-nowrap">{formatRelativeTime(a.createdAt)}</span>
-                </motion.div>
-              ))}
-            </div>
-          )}
-        </div>
-      </Section>
-
-      {/* Recent projects */}
-      <Section delay={0.8}>
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold">Projects</h2>
-            <Link href="/projects" className="inline-flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100">
-              View all <ArrowUpRight className="h-3 w-3" />
-            </Link>
-          </div>
-          {projects.length === 0 ? (
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
-              className="rounded-xl border border-dashed border-zinc-300 p-12 text-center dark:border-zinc-700"
-            >
-              <FolderKanban className="mx-auto h-8 w-8 text-zinc-300 dark:text-zinc-600" />
-              <p className="mt-3 text-sm text-zinc-500">No projects yet</p>
-              <Link href="/projects/new" className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-zinc-900 underline underline-offset-4 dark:text-zinc-100">
-                Create your first project
-              </Link>
-            </motion.div>
-          ) : (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {projects.slice(0, 6).map((project, i) => (
-                <motion.div key={project.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.4, delay: 0.85 + i * 0.05 }}
-                >
-                  <Link href={`/projects/${project.id}`}
-                    className="group block rounded-xl border border-zinc-200 bg-white p-4 transition-all hover:border-zinc-300 hover:shadow-sm dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: project.color }} />
-                      <h3 className="font-medium truncate">{project.name}</h3>
-                    </div>
-                    {project.description && <p className="mt-2 text-sm text-zinc-500 line-clamp-2">{project.description}</p>}
-                    <p className="mt-3 text-xs text-zinc-400">{project._count.tasks} tasks</p>
-                  </Link>
-                </motion.div>
-              ))}
-            </div>
-          )}
-        </div>
-      </Section>
-    </div>
-  )
-}
-
-// ─── HELPERS ─────────────────────────────────────────────────────────────────
-
-function formatActivityAction(a: { action: string; task?: { title: string } | null; project?: { name: string } | null; details: string }, short = false) {
-  if (a.action === "created" && a.task?.title) return `created task "${a.task.title}"`
-  if (a.action === "created" && a.project?.name) return `created project "${a.project.name}"`
-  if (a.action === "updated" && a.task?.title) return `updated "${a.task.title}"`
-  if (a.action === "completed" && a.task?.title) return `completed "${a.task.title}"`
-  if (a.action === "deleted") return `deleted ${a.details}`
-  return a.details || a.action
-}
-
-// ─── MAIN ────────────────────────────────────────────────────────────────────
-
+// ----------------------------------------------------
+// 4. MAIN EXPORT ROUTE WRAPPER
+// ----------------------------------------------------
 export function DashboardClient({
   projects,
   myProjects,
@@ -924,6 +1166,7 @@ export function DashboardClient({
   userId,
   orgName,
   user,
+  tasks,
   activities,
   myActivities,
   memberWorkload,
@@ -936,6 +1179,7 @@ export function DashboardClient({
   userId: string
   orgName: string
   user: { name: string; email: string; image: string | null }
+  tasks: DashboardTask[]
   activities: ActivityType[]
   myActivities: ActivityType[]
   memberWorkload: MemberWorkload[]
@@ -947,7 +1191,17 @@ export function DashboardClient({
   const effectiveIsAdmin = isAdmin && !isMemberView
 
   if (effectiveIsAdmin) {
-    return <AdminDashboard projects={projects} stats={stats} activities={activities} memberWorkload={memberWorkload} orgName={orgName} />
+    return (
+      <AdminDashboard 
+        projects={projects} 
+        stats={stats} 
+        activities={activities} 
+        memberWorkload={memberWorkload} 
+        orgName={orgName} 
+        user={user}
+        tasks={tasks}
+      />
+    )
   }
 
   return (
@@ -962,4 +1216,13 @@ export function DashboardClient({
       user={user}
     />
   )
+}
+
+function formatActivityAction(a: { action: string; task?: { title: string } | null; project?: { name: string } | null; details: string }) {
+  if (a.action === "created" && a.task?.title) return `created task "${a.task.title}"`
+  if (a.action === "created" && a.project?.name) return `created project "${a.project.name}"`
+  if (a.action === "updated" && a.task?.title) return `updated "${a.task.title}"`
+  if (a.action === "completed" && a.task?.title) return `completed "${a.task.title}"`
+  if (a.action === "deleted") return `deleted ${a.details}`
+  return a.details || a.action
 }

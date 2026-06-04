@@ -28,6 +28,10 @@ model User {
   tasks         Task[]       @relation("TaskAssignee")
   activities    Activity[]
   invites       Invite[]     @relation("InvitedBy")
+  emailLogs     EmailLog[]
+  chatParticipants ChatParticipant[]
+  messages         Message[]        @relation("SentMessages")
+  notifications    Notification[]
 }
 
 model Account {
@@ -78,9 +82,12 @@ model Organization {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  members  OrganizationMember[]
-  projects Project[]
-  invites  Invite[]
+  members        OrganizationMember[]
+  projects       Project[]
+  invites        Invite[]
+  emailContacts  EmailContact[]
+  emailLogs      EmailLog[]
+  chats          Chat[]
 }
 
 model OrganizationMember {
@@ -152,6 +159,37 @@ model Invite {
   invitedBy   User   @relation("InvitedBy", fields: [invitedById], references: [id])
 }
 
+model EmailContact {
+  id        String   @id @default(cuid())
+  email     String
+  name      String?
+  createdAt DateTime @default(now())
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, email])
+}
+
+model EmailLog {
+  id        String    @id @default(cuid())
+  to        String
+  subject   String
+  status    String    @default("pending")
+  method    String?
+  error     String?
+  metadata  String?
+  sentAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+
+  invitedById String?
+  invitedBy   User?    @relation(fields: [invitedById], references: [id])
+}
+
 model Activity {
   id        String   @id @default(cuid())
   action    String
@@ -164,4 +202,53 @@ model Activity {
   project  Project? @relation(fields: [projectId], references: [id])
   taskId   String?
   task     Task?    @relation(fields: [taskId], references: [id])
+}
+
+model Chat {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  participants ChatParticipant[]
+  messages     Message[]
+}
+
+model ChatParticipant {
+  id     String @id @default(cuid())
+  chatId String
+  userId String
+
+  chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([chatId, userId])
+}
+
+model Message {
+  id        String    @id @default(cuid())
+  content   String
+  createdAt DateTime  @default(now())
+  readAt    DateTime?
+
+  senderId String
+  chatId   String
+
+  sender User @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  chat   Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  type      String
+  title     String
+  message   String
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  userId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { getOrCreateOrg } from "@/lib/org"
+import { createNotification } from "@/lib/notifications"
 
 async function checkProjectAccess(projectId: string, orgId: string) {
   const project = await prisma.project.findFirst({
@@ -53,6 +54,16 @@ export async function POST(req: Request) {
     },
   })
 
+  if (task.assigneeId && task.assigneeId !== session.user.id) {
+    await createNotification({
+      userId: task.assigneeId,
+      type: "task_assigned",
+      title: "Task Assigned",
+      message: `You've been assigned "${task.title}"`,
+      link: `/projects/${projectId}`,
+    })
+  }
+
   return NextResponse.json(task)
 }
 
@@ -79,6 +90,7 @@ export async function PATCH(req: Request) {
   if (data.order !== undefined) updateData.order = data.order
   if (data.assigneeId !== undefined) updateData.assigneeId = data.assigneeId || null
   if (data.dueDate !== undefined) updateData.dueDate = data.dueDate ? new Date(data.dueDate) : null
+  if (data.submissionLink !== undefined) updateData.submissionLink = data.submissionLink
 
   const updated = await prisma.task.update({
     where: { id },
@@ -95,6 +107,16 @@ export async function PATCH(req: Request) {
         projectId: task.projectId,
         taskId: id,
       },
+    })
+  }
+
+  if (data.assigneeId && data.assigneeId !== task.assigneeId && data.assigneeId !== session.user.id) {
+    await createNotification({
+      userId: data.assigneeId,
+      type: "task_assigned",
+      title: "Task Assigned",
+      message: `You've been assigned "${updated.title}"`,
+      link: `/projects/${task.projectId}`,
     })
   }
 

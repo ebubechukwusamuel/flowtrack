@@ -110,7 +110,7 @@ export function AcceptInviteClient({
           </>
         ) : status === "success" ? (
           <>
-            <CheckCircle className="mx-auto h-12 w-12 text-emerald-500" />
+            <CheckCircle className="mx-auto h-12 w-12 text-[#CAFF33]" />
             <h1 className="mt-4 text-xl font-bold tracking-tight">Welcome to {orgName}!</h1>
             <p className="mt-2 text-sm text-zinc-500">Redirecting you to your dashboard...</p>
             <div className="mt-6">

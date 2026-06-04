@@ -1,5 +1,5 @@
 import type { Metadata } from "next"
-import { DM_Sans, Bricolage_Grotesque } from "next/font/google"
+import { DM_Sans, Bricolage_Grotesque, Lexend } from "next/font/google"
 import "./globals.css"
 
 const dmSans = DM_Sans({
@@ -10,6 +10,12 @@ const dmSans = DM_Sans({
 
 const bricolage = Bricolage_Grotesque({
   variable: "--font-display",
+  subsets: ["latin"],
+  display: "swap",
+})
+
+const lexend = Lexend({
+  variable: "--font-lexend",
   subsets: ["latin"],
   display: "swap",
 })
@@ -26,7 +32,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${dmSans.variable} ${bricolage.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`${dmSans.variable} ${bricolage.variable} ${lexend.variable} dark`} suppressHydrationWarning>
       <body className="min-h-screen bg-zinc-950 font-body text-zinc-100 antialiased">{children}</body>
     </html>
   )

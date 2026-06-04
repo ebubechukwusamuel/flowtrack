@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/db"
 import { AcceptInviteClient } from "@/components/accept-invite-client"
+import { InviteCodeEntry } from "@/components/invite-code-entry"
 
 export default async function AcceptInvitePage({
   searchParams,
@@ -9,7 +10,14 @@ export default async function AcceptInvitePage({
   searchParams: Promise<{ token?: string }>
 }) {
   const { token } = await searchParams
-  if (!token) return <div className="flex items-center justify-center min-h-screen"><p className="text-zinc-500">No invite token provided</p></div>
+
+  if (!token) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-zinc-50 dark:bg-zinc-950 p-4">
+        <InviteCodeEntry />
+      </div>
+    )
+  }
 
   const invite = await prisma.invite.findUnique({
     where: { token },

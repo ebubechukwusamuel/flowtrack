@@ -21,7 +21,7 @@ export default async function DashboardPage() {
     }),
     prisma.task.findMany({
       where: { project: { organizationId: orgId } },
-      include: { project: { select: { name: true, color: true } } },
+      include: { project: { select: { name: true, color: true } }, assignee: { select: { id: true, name: true } } },
       orderBy: { createdAt: "asc" },
     }),
     prisma.organizationMember.findMany({
@@ -79,6 +79,7 @@ export default async function DashboardPage() {
     name: p.name,
     description: p.description,
     color: p.color,
+    ownerId: p.ownerId,
     updatedAt: p.updatedAt.toISOString(),
     _count: { tasks: p._count.tasks },
   }))
@@ -135,6 +136,33 @@ export default async function DashboardPage() {
   const myProjectIds = new Set(myTasks.map((t) => t.projectId))
   const myProjects = projectSummaries.filter((p) => myProjectIds.has(p.id))
 
+  // All tasks assigned to current user (for member dashboard)
+  const myAllTasks = myTasks.map((t) => ({
+    id: t.id,
+    title: t.title,
+    description: t.description,
+    status: t.status,
+    submissionLink: t.submissionLink,
+    projectName: t.project.name,
+    projectColor: t.project.color,
+    dueDate: t.dueDate?.toISOString() ?? null,
+    priority: t.priority,
+  }))
+
+  // Submitted tasks for admin view
+  const submittedTasks = tasks
+    .filter((t) => t.status === "done" && t.submissionLink)
+    .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
+    .map((t) => ({
+      id: t.id,
+      title: t.title,
+      submissionLink: t.submissionLink!,
+      submittedAt: t.updatedAt.toISOString(),
+      projectName: t.project.name,
+      projectColor: t.project.color,
+      assignee: t.assignee ? { id: t.assignee.id, name: t.assignee.name || "Unknown" } : null,
+    }))
+
   // Member's upcoming deadline tasks
   const myUpcomingTasks = myTasks
     .filter((t) => t.dueDate && t.status !== "done")
@@ -159,8 +187,20 @@ export default async function DashboardPage() {
       user={{
         name: session.user.name || "User",
         email: session.user.email || "",
-        image: session.user.image,
+        image: session.user.image ?? null,
       }}
+      tasks={tasks.map((t) => ({
+        id: t.id,
+        title: t.title,
+        description: t.description ?? "",
+        status: t.status,
+        priority: t.priority,
+        dueDate: t.dueDate?.toISOString() ?? null,
+        createdAt: t.createdAt.toISOString(),
+        projectName: t.project.name,
+        projectColor: t.project.color,
+        assignee: t.assignee ? { id: t.assignee.id, name: t.assignee.name || "Unknown" } : null,
+      }))}
       activities={recentActivities.map((a) => ({
         id: a.id,
         action: a.action,

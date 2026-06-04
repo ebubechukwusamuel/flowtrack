@@ -28,18 +28,24 @@ export function TeamClient({
     setInviteError("")
     setInviteSuccess("")
 
-    const res = await fetch("/api/invites/send", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: inviteEmail.trim() }),
-    })
+    try {
+      const res = await fetch("/api/invites/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: inviteEmail.trim() }),
+      })
 
-    const data = await res.json()
-    if (!res.ok) {
-      setInviteError(data.error || "Failed to invite")
-    } else {
-      setInviteSuccess(`Invitation sent to ${inviteEmail.trim()}`)
-      setInviteEmail("")
+      const data = await res.json()
+
+      if (!res.ok || data.success === false) {
+        setInviteError(data.error || "Failed to send invite")
+      } else {
+        setInviteSuccess(`Invitation sent to ${inviteEmail.trim()}`)
+        setInviteEmail("")
+      }
+    } catch (e) {
+      console.error("[INVITE]", e)
+      setInviteError(`Request failed: ${e instanceof Error ? e.message : "Unknown error"}`)
     }
     setInviting(false)
   }
@@ -55,7 +61,7 @@ export function TeamClient({
     <div className="p-6 space-y-8">
       <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5 }}>
         <div className="flex items-center gap-3">
-          <Users className="h-6 w-6 text-indigo-500" />
+          <Users className="h-6 w-6 text-[#CAFF33]" />
           <div>
             <h1 className="text-2xl font-bold tracking-tight">{orgName}</h1>
             <p className="text-sm text-zinc-500 dark:text-zinc-400">{memberList.length} members</p>
@@ -91,7 +97,7 @@ export function TeamClient({
           </form>
           {inviteError && <p className="mt-2 text-sm text-red-500">{inviteError}</p>}
           {inviteSuccess && (
-            <div className="mt-2 flex items-center gap-1.5 text-sm text-emerald-500">
+            <div className="mt-2 flex items-center gap-1.5 text-sm text-[#CAFF33]">
               <CheckCircle className="h-4 w-4 shrink-0" />
               {inviteSuccess}
             </div>
@@ -116,7 +122,7 @@ export function TeamClient({
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium">{member.user.name || member.user.email}</span>
                     {member.role === "admin" && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-[#CAFF33]/10 px-2 py-0.5 text-xs font-medium text-[#CAFF33]">
                         <Shield className="h-3 w-3" />
                         Admin
                       </span>

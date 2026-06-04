@@ -6,7 +6,7 @@ import { Sidebar } from "@/components/sidebar"
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await auth()
-  if (!session?.user) redirect("/login")
+  if (!session?.user?.id) redirect("/login")
 
   const membership = await getOrCreateOrg(session.user.id, session.user.name, session.user.email)
 

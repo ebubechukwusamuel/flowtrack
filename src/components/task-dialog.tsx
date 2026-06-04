@@ -25,6 +25,7 @@ export function TaskDialog({
   const [description, setDescription] = useState(task?.description ?? "")
   const [priority, setPriority] = useState(task?.priority ?? "medium")
   const [assigneeId, setAssigneeId] = useState(task?.assignee?.id ?? "")
+  const [dueDate, setDueDate] = useState(task?.dueDate ? task.dueDate.split("T")[0] : "")
   const [saving, setSaving] = useState(false)
   const [status, setStatus] = useState(task?.status ?? column)
   const [submissionLink, setSubmissionLink] = useState(task?.submissionLink ?? "")
@@ -69,6 +70,7 @@ export function TaskDialog({
       priority,
       status: status || task?.status || column,
       assigneeId: assigneeId || undefined,
+      dueDate: dueDate || null,
     } as Partial<Task>)
     setSaving(false)
   }
@@ -85,7 +87,7 @@ export function TaskDialog({
             {task && (
               <button
                 onClick={() => onDelete(task.id)}
-                className="rounded-lg p-1.5 text-zinc-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950"
+                className="rounded-lg p-1.5 text-zinc-500 hover:bg-red-950 hover:text-red-400"
               >
                 <Trash2 className="h-4 w-4" />
               </button>
@@ -100,28 +102,28 @@ export function TaskDialog({
         </div>
 
         {task && status === "in_progress" && currentUserId === task.assignee?.id && (
-          <div className="mb-4 space-y-3 rounded-lg border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900 dark:bg-emerald-950">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-              <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">Submit your deliverable</p>
+          <div className="mb-4 space-y-3 rounded-lg border border-[#2d3224] bg-[#22251B] p-4">
+            <div className="flex items-start gap-3">
+              <CheckCircle2 className="h-5 w-5 text-[#CAFF33] shrink-0 mt-1" />
+              <div>
+                <p className="text-sm font-medium text-[#D1FF4D]">Submit your deliverable</p>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  Paste the URL to your completed work below to finalize this task.
+                </p>
+              </div>
             </div>
             <div className="flex gap-2">
-              <div className="flex-1 relative">
-                <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
-                <input
-                  value={submissionLink}
-                  onChange={(e) => setSubmissionLink(e.target.value)}
-                  placeholder="Paste your link here..."
-                  className="w-full rounded-lg border border-zinc-300 bg-white pl-9 pr-3 py-2 text-sm outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-800"
-                />
-              </div>
+              <input
+                value={submissionLink}
+                onChange={(e) => setSubmissionLink(e.target.value)}
+                placeholder="https://your-deliverable.com"
+                className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800 pl-3 pr-3 py-2 text-sm outline-none focus:border-[#CAFF33] focus:ring-1 focus:ring-[#CAFF33] text-zinc-100 placeholder:text-zinc-500"
+              />
               <button
-                type="button"
                 onClick={handleDeliver}
                 disabled={saving || !submissionLink.trim()}
-                className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-lg bg-[#CAFF33] px-4 py-2 text-sm font-semibold text-[#1C1C1C] hover:bg-[#d8ff5c] disabled:opacity-50"
               >
-                <Send className="h-4 w-4" />
                 {saving ? "Submitting..." : "Submit"}
               </button>
             </div>
@@ -134,7 +136,7 @@ export function TaskDialog({
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-800"
+              className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm outline-none focus:border-[#CAFF33] focus:ring-1 focus:ring-[#CAFF33] text-zinc-100 placeholder:text-zinc-500"
               placeholder="Task title"
               autoFocus
             />
@@ -146,7 +148,7 @@ export function TaskDialog({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
-              className="w-full resize-none rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-800"
+              className="w-full resize-none rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm outline-none focus:border-[#CAFF33] focus:ring-1 focus:ring-[#CAFF33] text-zinc-100 placeholder:text-zinc-500"
               placeholder="Optional description"
             />
           </div>
@@ -157,7 +159,7 @@ export function TaskDialog({
               <select
                 value={priority}
                 onChange={(e) => setPriority(e.target.value)}
-                className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-800"
+                className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm outline-none focus:border-[#CAFF33] focus:ring-1 focus:ring-[#CAFF33] text-zinc-100 placeholder:text-zinc-500"
               >
                 <option value="low">Low</option>
                 <option value="medium">Medium</option>
@@ -171,7 +173,7 @@ export function TaskDialog({
               <select
                 value={assigneeId}
                 onChange={(e) => setAssigneeId(e.target.value)}
-                className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-800"
+                className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm outline-none focus:border-[#CAFF33] focus:ring-1 focus:ring-[#CAFF33] text-zinc-100 placeholder:text-zinc-500"
               >
                 <option value="">Unassigned</option>
                 {users.map((u) => (
@@ -183,18 +185,28 @@ export function TaskDialog({
             </div>
           </div>
 
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Due Date</label>
+            <input
+              type="date"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+              className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm outline-none focus:border-[#CAFF33] focus:ring-1 focus:ring-[#CAFF33] text-zinc-100 placeholder:text-zinc-500"
+            />
+          </div>
+
           <div className="flex justify-end gap-2 pt-2">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              className="rounded-lg border border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-300 transition-colors hover:bg-zinc-800"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving || !title.trim()}
-              className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+              className="rounded-lg bg-[#CAFF33] px-4 py-2 text-sm font-medium text-[#1C1C1C] transition-colors hover:bg-[#d8ff5c] disabled:opacity-50"
             >
               {saving ? "Saving..." : task ? "Save" : "Create"}
             </button>

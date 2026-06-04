@@ -3,20 +3,34 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
-import { ArrowLeft, Plus, ExternalLink, CheckCircle2, Send, Link2, UserCircle } from "lucide-react"
+import { ArrowLeft, Plus, ExternalLink, CheckCircle2, Send, Link2, UserCircle, Calendar, AlertCircle, ArrowUp, ArrowDown } from "lucide-react"
 import { TaskDialog } from "./task-dialog"
 import type { Task, Project, User } from "@/types"
 
 const STATUS_STYLES: Record<string, string> = {
   todo: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400",
   in_progress: "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300",
-  done: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300",
+  done: "bg-[#CAFF33]/10 text-[#CAFF33]",
 }
 
 const STATUS_LABELS: Record<string, string> = {
   todo: "To Do",
   in_progress: "In Progress",
   done: "Done",
+}
+
+const PRIORITY_ICONS: Record<string, { icon: typeof ArrowDown; color: string }> = {
+  low: { icon: ArrowDown, color: "text-blue-500" },
+  medium: { icon: AlertCircle, color: "text-amber-500" },
+  high: { icon: ArrowUp, color: "text-orange-500" },
+  urgent: { icon: AlertCircle, color: "text-red-500" },
+}
+
+const PRIORITY_LABELS: Record<string, string> = {
+  low: "Low",
+  medium: "Medium",
+  high: "High",
+  urgent: "Urgent",
 }
 
 export function ProjectBoard({ project, users, currentUserId, isAdmin: _isAdmin }: { project: Project; users: User[]; currentUserId?: string; isAdmin?: boolean }) {
@@ -27,6 +41,7 @@ export function ProjectBoard({ project, users, currentUserId, isAdmin: _isAdmin 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingTask, setEditingTask] = useState<Task | null>(null)
   const [submitLinks, setSubmitLinks] = useState<Record<string, string>>({})
+  const [submitError, setSubmitError] = useState("")
 
   async function updateTask(id: string, data: Partial<Task>) {
     const res = await fetch("/api/tasks", {
@@ -34,17 +49,19 @@ export function ProjectBoard({ project, users, currentUserId, isAdmin: _isAdmin 
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, ...data }),
     })
-    if (res.ok) {
-      const updated = await res.json()
-      setTasks((prev) => prev.map((t) => (t.id === id ? updated : t)))
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: "Failed to update" }))
+      throw new Error(err.error || "Failed to update")
     }
+    const updated = await res.json()
+    setTasks((prev) => prev.map((t) => (t.id === id ? updated : t)))
   }
 
-  async function handleCreateTask(title: string, status: string) {
+  async function handleCreateTask(title: string, status: string, data?: Partial<Task>) {
     const res = await fetch("/api/tasks", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, status, projectId: project.id }),
+      body: JSON.stringify({ title, status, projectId: project.id, description: data?.description, priority: data?.priority, assigneeId: (data as Record<string, unknown>)?.assigneeId, dueDate: data?.dueDate }),
     })
     if (res.ok) {
       const task = await res.json()
@@ -55,8 +72,20 @@ export function ProjectBoard({ project, users, currentUserId, isAdmin: _isAdmin 
   async function handleDeliver(taskId: string) {
     const link = submitLinks[taskId]
     if (!link?.trim()) return
-    await updateTask(taskId, { submissionLink: link.trim(), status: "done" } as Partial<Task>)
-    setSubmitLinks((prev) => ({ ...prev, [taskId]: "" }))
+    setSubmitError("")
+    try {
+      await updateTask(taskId, { submissionLink: link.trim(), status: "done" } as Partial<Task>)
+      setSubmitLinks((prev) => ({ ...prev, [taskId]: "" }))
+    } catch (e) {
+      setSubmitError((e as Error).message)
+    }
+  }
+
+  async function handleDeleteSubmission(taskId: string) {
+    if (!confirm("Remove your submission and reopen this task?")) return
+    try {
+      await updateTask(taskId, { submissionLink: null, status: "in_progress" } as Partial<Task>)
+    } catch {}
   }
 
   const myTasks = tasks.filter((t) => t.assignee?.id === currentUserId)
@@ -94,6 +123,7 @@ export function ProjectBoard({ project, users, currentUserId, isAdmin: _isAdmin 
                 <tr className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
                   <th className="px-4 py-3 text-left font-medium text-zinc-500">Task</th>
                   <th className="px-4 py-3 text-left font-medium text-zinc-500">Assignee</th>
+                  <th className="px-4 py-3 text-left font-medium text-zinc-500">Due Date</th>
                   <th className="px-4 py-3 text-left font-medium text-zinc-500">Status</th>
                   <th className="px-4 py-3 text-left font-medium text-zinc-500">Submission</th>
                   <th className="px-4 py-3 text-right font-medium text-zinc-500">Actions</th>
@@ -102,7 +132,7 @@ export function ProjectBoard({ project, users, currentUserId, isAdmin: _isAdmin 
               <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
                 {tasks.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-4 py-12 text-center text-sm text-zinc-400">
+                    <td colSpan={6} className="px-4 py-12 text-center text-sm text-zinc-400">
                       No tasks yet. {isAdmin && "Create your first task."}
                     </td>
                   </tr>
@@ -129,6 +159,15 @@ export function ProjectBoard({ project, users, currentUserId, isAdmin: _isAdmin 
                             {task.assignee?.name || task.assignee?.email || "Unassigned"}
                           </span>
                         </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        {task.dueDate ? (
+                          <span className={`text-xs ${new Date(task.dueDate) < new Date() && task.status !== "done" ? "text-red-500 font-medium" : "text-zinc-500"}`}>
+                            {new Date(task.dueDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-zinc-400">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[task.status] || STATUS_STYLES.todo}`}>
@@ -171,56 +210,84 @@ export function ProjectBoard({ project, users, currentUserId, isAdmin: _isAdmin 
                 <p className="mt-4 text-sm text-zinc-500">No tasks assigned to you yet.</p>
               </div>
             ) : (
-              myTasks.map((task) => (
-                <div key={task.id} className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-medium">{task.title}</h3>
-                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[task.status] || STATUS_STYLES.todo}`}>
-                          {STATUS_LABELS[task.status] || task.status}
-                        </span>
+              myTasks.map((task) => {
+                const PriorityIcon = PRIORITY_ICONS[task.priority]?.icon || AlertCircle
+                const priorityColor = PRIORITY_ICONS[task.priority]?.color || "text-zinc-500"
+                const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && task.status !== "done"
+                return (
+                  <div key={task.id} className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="font-medium">{task.title}</h3>
+                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[task.status] || STATUS_STYLES.todo}`}>
+                            {STATUS_LABELS[task.status] || task.status}
+                          </span>
+                        </div>
+                        {task.description && (
+                          <p className="mt-1.5 text-sm text-zinc-500">{task.description}</p>
+                        )}
+                        <div className="mt-3 flex items-center gap-3 text-xs text-zinc-500">
+                          <span className={`inline-flex items-center gap-1 ${priorityColor}`}>
+                            <PriorityIcon className="h-3.5 w-3.5" />
+                            {PRIORITY_LABELS[task.priority] || "Medium"}
+                          </span>
+                          {task.dueDate && (
+                            <span className={`inline-flex items-center gap-1 ${isOverdue ? "text-red-500 font-medium" : ""}`}>
+                              <Calendar className="h-3.5 w-3.5" />
+                              {isOverdue ? "Overdue: " : "Due: "}
+                              {new Date(task.dueDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      {task.description && (
-                        <p className="mt-1 text-sm text-zinc-500">{task.description}</p>
-                      )}
                     </div>
+
+                    {task.status === "in_progress" && (
+                      <div className="mt-4 flex gap-2">
+                        <div className="flex-1 relative">
+                          <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
+                          <input
+                            value={submitLinks[task.id] || ""}
+                            onChange={(e) => setSubmitLinks((prev) => ({ ...prev, [task.id]: e.target.value }))}
+                            placeholder="Paste your deliverable link..."
+                            className="w-full rounded-lg border border-zinc-300 bg-white pl-9 pr-3 py-2 text-sm outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-800"
+                          />
+                        </div>
+                        <button
+                          onClick={() => handleDeliver(task.id)}
+                          disabled={!submitLinks[task.id]?.trim()}
+                          className="inline-flex items-center gap-2 rounded-lg bg-[#CAFF33] px-4 py-2 text-sm font-medium text-[#1C1C1C] hover:bg-[#d8ff5c] disabled:opacity-50"
+                        >
+                          <Send className="h-4 w-4" /> Submit
+                        </button>
+                      </div>
+                    )}
+
+                    {submitError && (
+                      <p className="mt-2 text-sm text-red-500">{submitError}</p>
+                    )}
+
+                    {task.status === "done" && task.submissionLink && (
+                      <div className="mt-3 flex items-center gap-2 rounded-lg bg-[#22251B] px-3 py-2 text-sm">
+                        <CheckCircle2 className="h-4 w-4 text-[#CAFF33] shrink-0" />
+                        <span className="text-[#D1FF4D]">Submitted:</span>
+                        <a href={task.submissionLink} target="_blank" rel="noopener noreferrer"
+                          className="text-blue-500 hover:underline flex items-center gap-1 truncate flex-1 min-w-0"
+                        >
+                          {task.submissionLink} <ExternalLink className="h-3 w-3 shrink-0" />
+                        </a>
+                        <button
+                          onClick={() => handleDeleteSubmission(task.id)}
+                          className="shrink-0 rounded-md px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    )}
                   </div>
-
-                  {task.status === "in_progress" && (
-                    <div className="mt-4 flex gap-2">
-                      <div className="flex-1 relative">
-                        <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
-                        <input
-                          value={submitLinks[task.id] || ""}
-                          onChange={(e) => setSubmitLinks((prev) => ({ ...prev, [task.id]: e.target.value }))}
-                          placeholder="Paste your deliverable link..."
-                          className="w-full rounded-lg border border-zinc-300 bg-white pl-9 pr-3 py-2 text-sm outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-800"
-                        />
-                      </div>
-                      <button
-                        onClick={() => handleDeliver(task.id)}
-                        disabled={!submitLinks[task.id]?.trim()}
-                        className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
-                      >
-                        <Send className="h-4 w-4" /> Submit
-                      </button>
-                    </div>
-                  )}
-
-                  {task.status === "done" && task.submissionLink && (
-                    <div className="mt-3 flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm dark:bg-emerald-950">
-                      <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                      <span className="text-emerald-700 dark:text-emerald-300">Submitted:</span>
-                      <a href={task.submissionLink} target="_blank" rel="noopener noreferrer"
-                        className="text-blue-500 hover:underline flex items-center gap-1 truncate"
-                      >
-                        {task.submissionLink} <ExternalLink className="h-3 w-3 shrink-0" />
-                      </a>
-                    </div>
-                  )}
-                </div>
-              ))
+                )
+              })
             )}
           </div>
         )}
@@ -236,7 +303,7 @@ export function ProjectBoard({ project, users, currentUserId, isAdmin: _isAdmin 
             if (editingTask) {
               await updateTask(editingTask.id, data as Partial<Task>)
             } else {
-              await handleCreateTask(title, "todo")
+              await handleCreateTask(title, "todo", data as Partial<Task>)
             }
             setDialogOpen(false)
             setEditingTask(null)
