@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { motion } from "framer-motion"
 import { Building2 } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -19,21 +20,20 @@ export default function RegisterPage() {
     setLoading(true)
     setError("")
 
-    const res = await fetch("/api/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, email, password }),
+    const supabase = createClient()
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { name } },
     })
 
-    const data = await res.json()
-
-    if (!res.ok) {
-      setError(data.error || "Something went wrong")
+    if (error) {
+      setError(error.message || "Something went wrong")
       setLoading(false)
       return
     }
 
-    router.push("/login")
+    router.push("/login?registered=true")
   }
 
   return (

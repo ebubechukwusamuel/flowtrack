@@ -1,10 +1,10 @@
 "use client"
 
 import { Suspense, useState } from "react"
-import { signIn } from "next-auth/react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { UserPlus, Building2, ArrowLeft } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
 
 function LoginForm() {
   const router = useRouter()
@@ -20,13 +20,10 @@ function LoginForm() {
     setLoading(true)
     setError("")
 
-    const result = await signIn("credentials", {
-      email,
-      password,
-      redirect: false,
-    })
+    const supabase = createClient()
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
 
-    if (result?.error) {
+    if (error) {
       setError("Invalid email or password")
       setLoading(false)
       return

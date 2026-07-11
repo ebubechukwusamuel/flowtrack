@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
+import { getSession } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { getOrCreateOrg } from "@/lib/org"
 
 export async function POST(req: Request) {
-  const session = await auth()
+  const session = await getSession()
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const membership = await getOrCreateOrg(session.user.id, session.user.name, session.user.email)
@@ -27,7 +27,7 @@ export async function POST(req: Request) {
 }
 
 export async function GET() {
-  const session = await auth()
+  const session = await getSession()
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const membership = await getOrCreateOrg(session.user.id, session.user.name, session.user.email)

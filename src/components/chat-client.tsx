@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from "framer-motion"
 import {
   MessageSquare, Send, Search, ArrowLeft, LoaderPinwheel, User, Users,
   Paperclip, Image, File, Video, Mic, X, FileText, Download,
-  Check, Pencil, Trash2, Ellipsis,
+  Check, Pencil, Trash2, Ellipsis, Phone, PhoneOff, PhoneIncoming,
+  Volume2, VolumeX, Monitor, MonitorOff, ScreenShare, ScreenShareOff,
 } from "lucide-react"
 import { VoiceRecorder } from "@/components/voice-recorder"
 import { AvatarImg } from "./avatar-img"
@@ -38,12 +39,50 @@ interface ChatMessage {
 
 interface ChatInfo {
   id: string
+  name?: string | null
+  isGroup?: boolean
   participants: { user: Member }[]
   messages: { content: string | null; createdAt: string; sender: { id: string; name: string | null }; attachments?: { id: string; type: string; name: string }[]; deletedAt?: string | null }[]
   updatedAt: string
 }
 
-const ACCEPTED_TYPES = "*/*"
+interface CallInfo {
+  id: string
+  status: string
+  isVideo: boolean
+  offer?: string | null
+  answer?: string | null
+  startedAt?: string | null
+  endedAt?: string | null
+  createdAt: string
+  callerId: string
+  caller: { id: string; name: string | null; image: string | null }
+  receiverId: string
+  receiver: { id: string; name: string | null; image: string | null }
+  chat?: { id: string; name?: string | null; isGroup?: boolean } | null
+}
+
+const RTC_CONFIG: RTCConfiguration = {
+  iceServers: [
+    { urls: "stun:stun.l.google.com:19302" },
+    { urls: "stun:stun1.l.google.com:19302" },
+  ],
+}
+
+async function getMedia(video: boolean) {
+  try {
+    return await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      video,
+    })
+  } catch {
+    if (video) {
+      console.warn("[MEDIA] Camera unavailable, falling back to audio only")
+      return navigator.mediaDevices.getUserMedia({ audio: true })
+    }
+    throw new Error("Microphone access denied")
+  }
+}
 
 function formatTime(dateStr: string): string {
   const d = new Date(dateStr)
@@ -83,6 +122,12 @@ function isAudio(name: string): boolean {
   return ["mp3", "wav", "ogg", "webm", "m4a"].includes(ext || "")
 }
 
+function formatDuration(seconds: number): string {
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  return `${m}:${s.toString().padStart(2, "0")}`
+}
+
 export function ChatClient({ userId }: { userId: string }) {
   const [chats, setChats] = useState<ChatInfo[]>([])
   const [selectedChat, setSelectedChat] = useState<string | null>(null)
@@ -100,8 +145,28 @@ export function ChatClient({ userId }: { userId: string }) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const memberBarRef = useRef<HTMLDivElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+
+  const [groupModalOpen, setGroupModalOpen] = useState(false)
+  const [groupName, setGroupName] = useState("")
+  const [selectedGroupMembers, setSelectedGroupMembers] = useState<string[]>([])
+
+  const [calls, setCalls] = useState<CallInfo[]>([])
+  const [currentCall, setCurrentCall] = useState<CallInfo | null>(null)
+  const [incomingCall, setIncomingCall] = useState<CallInfo | null>(null)
+  const [callDuration, setCallDuration] = useState(0)
+  const [isMuted, setIsMuted] = useState(false)
+  const [isVideoOff, setIsVideoOff] = useState(false)
+  const [isSharingScreen, setIsSharingScreen] = useState(false)
+  const [mediaViewer, setMediaViewer] = useState<Attachment | null>(null)
+  const peerRef = useRef<RTCPeerConnection | null>(null)
+  const localStreamRef = useRef<MediaStream | null>(null)
+  const remoteStreamRef = useRef<MediaStream | null>(null)
+  const localVideoRef = useRef<HTMLVideoElement>(null)
+  const remoteVideoRef = useRef<HTMLVideoElement>(null)
+  const screenTrackRef = useRef<MediaStreamTrack | null>(null)
+  const callTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const callIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     Promise.all([fetchChats(), fetchMembers()]).finally(() => setLoading(false))
@@ -147,8 +212,91 @@ export function ChatClient({ userId }: { userId: string }) {
     return () => clearInterval(interval)
   }, [selectedChat])
 
+  useEffect(() => {
+    callIdRef.current = currentCall?.id || null
+    if (currentCall && remoteVideoRef.current && remoteStreamRef.current) {
+      remoteVideoRef.current.srcObject = remoteStreamRef.current
+    }
+    if (currentCall && localVideoRef.current && localStreamRef.current) {
+      localVideoRef.current.srcObject = localStreamRef.current
+    }
+  }, [currentCall])
+
+  useEffect(() => {
+    fetchCalls()
+    const interval = setInterval(fetchCalls, 2000)
+    return () => clearInterval(interval)
+  }, [])
+
+  useEffect(() => {
+    if (incomingCall && !currentCall) {
+      const audio = new Audio()
+      audio.src = "data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACAf39/f4B/f3+AgH9/f3+AgH9/f3+AgH9/f3+AgH9/f3+AgH9/f3+AgH9/f3+AgH9/fw=="
+      audio.loop = true
+      audio.play().catch(() => {})
+      return () => { audio.pause(); audio.src = "" }
+    }
+  }, [incomingCall])
+
+  useEffect(() => {
+    if (currentCall?.status === "ongoing") {
+      callTimerRef.current = setInterval(() => {
+        setCallDuration((prev) => prev + 1)
+      }, 1000)
+    }
+    return () => {
+      if (callTimerRef.current) clearInterval(callTimerRef.current)
+    }
+  }, [currentCall?.status])
+
+  useEffect(() => {
+    return () => {
+      cleanupCall()
+      callIdRef.current = null
+    }
+  }, [])
+
+  async function fetchCalls() {
+    try {
+      const res = await fetch("/api/calls")
+      const data = await res.json()
+      if (res.ok) {
+        setCalls(data.calls || [])
+        const currentId = callIdRef.current
+        const ring = data.calls?.find((c: CallInfo) => c.status === "ringing" && c.receiverId === userId)
+        if (ring && !currentId) setIncomingCall(ring)
+        const active = data.calls?.find((c: CallInfo) => c.status === "ongoing" && (c.callerId === userId || c.receiverId === userId))
+        if (active) {
+          if (active.id !== currentId) {
+            setCurrentCall(active)
+          }
+          setIncomingCall(null)
+          if (!peerRef.current) {
+            setupCallMediaAsReceiver(active)
+          }
+        }
+        if (currentId) {
+          const endedCall = data.calls?.find((c: CallInfo) =>
+            (c.status === "ended" || c.status === "missed") && c.id === currentId
+          )
+          if (endedCall) {
+            cleanupCall()
+            setCurrentCall(null)
+            setIncomingCall(null)
+          }
+        }
+      }
+    } catch (e) {
+      console.error("[CALLS]", e)
+    }
+  }
+
   function chatForMember(memberId: string): ChatInfo | undefined {
-    return chats.find((c) => c.participants.some((p) => p.user.id === memberId))
+    return chats.find((c) =>
+      !c.isGroup &&
+      c.participants.some((p) => p.user.id === memberId) &&
+      c.participants.some((p) => p.user.id === userId)
+    )
   }
 
   function lastMessageForMember(memberId: string): ChatInfo["messages"][0] | null {
@@ -156,10 +304,37 @@ export function ChatClient({ userId }: { userId: string }) {
     return chat?.messages[0] || null
   }
 
+  function lastMessageForChat(chatId: string): ChatInfo["messages"][0] | null {
+    const chat = chats.find((c) => c.id === chatId)
+    return chat?.messages[0] || null
+  }
+
   const otherParticipant = useCallback((chat: ChatInfo): Member | null => {
+    if (chat.isGroup) return null
     const other = chat.participants.find((p) => p.user.id !== userId)
     return other?.user || null
   }, [userId])
+
+  function chatName(chat: ChatInfo): string {
+    if (chat.isGroup) return chat.name || "Group"
+    return otherParticipant(chat)?.name || "Unknown"
+  }
+
+  function chatAvatar(chat: ChatInfo) {
+    if (chat.isGroup) {
+      return (
+        <div className="h-10 w-10 rounded-full bg-[#CAFF33]/10 flex items-center justify-center shrink-0">
+          <Users className="h-4 w-4 text-[#CAFF33]" />
+        </div>
+      )
+    }
+    const other = otherParticipant(chat)
+    return (
+      <div className="h-10 w-10 rounded-full bg-zinc-700 flex items-center justify-center shrink-0 text-sm text-white overflow-hidden">
+        <AvatarImg src={other?.image} name={other?.name} size="md" />
+      </div>
+    )
+  }
 
   async function selectOrStartChat(memberId: string) {
     const existing = chatForMember(memberId)
@@ -191,6 +366,42 @@ export function ChatClient({ userId }: { userId: string }) {
       }
     } catch (e) {
       console.error("[START_CHAT]", e)
+    }
+  }
+
+  async function selectChat(chatId: string) {
+    setSelectedChat(chatId)
+    try {
+      const res = await fetch(`/api/chats/${chatId}/messages`)
+      const data = await res.json()
+      if (res.ok) setMessages(data.messages || [])
+    } catch (e) {
+      console.error("[MESSAGES]", e)
+    }
+  }
+
+  async function createGroup() {
+    if (selectedGroupMembers.length < 2 || !groupName.trim()) return
+    try {
+      const res = await fetch("/api/chats", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: groupName.trim(),
+          participantIds: selectedGroupMembers,
+        }),
+      })
+      const data = await res.json()
+      if (res.ok && data.chat) {
+        setChats((prev) => [data.chat, ...prev])
+        setSelectedChat(data.chat.id)
+        setMessages([])
+        setGroupModalOpen(false)
+        setGroupName("")
+        setSelectedGroupMembers([])
+      }
+    } catch (e) {
+      console.error("[CREATE_GROUP]", e)
     }
   }
 
@@ -300,6 +511,354 @@ export function ChatClient({ userId }: { userId: string }) {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
+  async function startCall(memberId: string, isVideo: boolean) {
+    try {
+      const res = await fetch("/api/calls", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ receiverId: memberId, chatId: selectedChat, isVideo }),
+      })
+      const data = await res.json()
+      if (res.ok && data.call) {
+        setCurrentCall(data.call)
+        callIdRef.current = data.call.id
+        await initiateWebRTC(data.call, isVideo)
+      }
+    } catch (e) {
+      console.error("[START_CALL]", e)
+    }
+  }
+
+  async function startGroupCall(isVideo: boolean) {
+    if (!selectedChatData?.isGroup) return
+    const recipients = selectedChatData.participants
+      .filter((p) => p.user.id !== userId)
+      .map((p) => p.user.id)
+    if (recipients.length === 0) return
+
+    try {
+      const res = await fetch("/api/calls/group", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ receiverIds: recipients, chatId: selectedChat, isVideo }),
+      })
+      const data = await res.json()
+      if (res.ok && data.calls?.length > 0) {
+        setCurrentCall(data.calls[0])
+        callIdRef.current = data.calls[0].id
+        await initiateWebRTC(data.calls[0], isVideo)
+      }
+    } catch (e) {
+      console.error("[GROUP_CALL]", e)
+    }
+  }
+
+  async function initiateWebRTC(call: CallInfo, video: boolean) {
+    try {
+      const pc = new RTCPeerConnection(RTC_CONFIG)
+      peerRef.current = pc
+
+      const stream = await getMedia(video)
+      localStreamRef.current = stream
+      if (localVideoRef.current) localVideoRef.current.srcObject = stream
+      stream.getTracks().forEach((track) => pc.addTrack(track, stream))
+
+      pc.ontrack = (event) => {
+        remoteStreamRef.current = event.streams[0]
+        if (remoteVideoRef.current) remoteVideoRef.current.srcObject = event.streams[0]
+      }
+
+      pc.onicecandidate = async (event) => {
+        if (event.candidate) {
+          try {
+            await fetch(`/api/calls/${call.id}/ice-candidates`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ type: "caller", candidate: JSON.stringify(event.candidate) }),
+            })
+          } catch (e) { console.error("[ICE]", e) }
+        }
+      }
+
+      const offer = await pc.createOffer()
+      await pc.setLocalDescription(offer)
+
+      await fetch(`/api/calls/${call.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ offer: JSON.stringify(offer) }),
+      })
+
+      // Poll for receiver's answer
+      const maxRetries = 30
+      for (let i = 0; i < maxRetries; i++) {
+        await new Promise((r) => setTimeout(r, 1000))
+        const res = await fetch(`/api/calls/${call.id}`)
+        const data = await res.json()
+        if (data.call?.answer) {
+          try {
+            const answer = JSON.parse(data.call.answer)
+            await pc.setRemoteDescription(new RTCSessionDescription(answer))
+            setCurrentCall((prev) => prev && prev.id === call.id ? { ...prev, status: "ongoing" } : prev)
+            pollIceCandidates(call.id, "caller")
+            break
+          } catch (e) { console.error("[ANSWER]", e) }
+        }
+      }
+    } catch (e) {
+      console.error("[WEBRTC_INIT]", e)
+    }
+  }
+
+  async function acceptCall(call: CallInfo) {
+    setIncomingCall(null)
+    setCurrentCall({ ...call, status: "ongoing" })
+    callIdRef.current = call.id
+
+    try {
+      await fetch(`/api/calls/${call.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "ongoing" }),
+      })
+
+      const pc = new RTCPeerConnection(RTC_CONFIG)
+      peerRef.current = pc
+
+      const stream = await getMedia(call.isVideo)
+      localStreamRef.current = stream
+      if (localVideoRef.current) localVideoRef.current.srcObject = stream
+
+      stream.getTracks().forEach((track) => pc.addTrack(track, stream))
+
+      pc.ontrack = (event) => {
+        remoteStreamRef.current = event.streams[0]
+        if (remoteVideoRef.current) remoteVideoRef.current.srcObject = event.streams[0]
+      }
+
+      pc.onicecandidate = async (event) => {
+        if (event.candidate) {
+          try {
+            await fetch(`/api/calls/${call.id}/ice-candidates`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ type: "receiver", candidate: JSON.stringify(event.candidate) }),
+            })
+          } catch (e) { console.error("[ICE]", e) }
+        }
+      }
+
+      // Refetch call to get the latest offer (may not have been present when fetchCalls captured it)
+      const refreshRes = await fetch(`/api/calls/${call.id}`)
+      const refreshData = await refreshRes.json()
+      const latestCall = refreshData.call || call
+
+      if (latestCall.offer) {
+        const offer = JSON.parse(latestCall.offer)
+        await pc.setRemoteDescription(new RTCSessionDescription(offer))
+        const answer = await pc.createAnswer()
+        await pc.setLocalDescription(answer)
+
+        await fetch(`/api/calls/${call.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ answer: JSON.stringify(answer) }),
+        })
+      }
+
+      pollIceCandidates(call.id, "receiver")
+    } catch (e) {
+      console.error("[ACCEPT_CALL]", e)
+    }
+  }
+
+  function pollIceCandidates(callId: string, myType: string, lastTime?: string) {
+    const url = lastTime ? `/api/calls/${callId}/ice-candidates?since=${lastTime}` : `/api/calls/${callId}/ice-candidates`
+    fetch(url).then((r) => r.json()).then((data) => {
+      if (data.candidates && peerRef.current) {
+        for (const c of data.candidates) {
+          if (c.type !== myType) {
+            try {
+              peerRef.current.addIceCandidate(new RTCIceCandidate(JSON.parse(c.candidate)))
+            } catch (e) { /* ignore invalid */ }
+          }
+        }
+        const newTime = data.candidates?.length > 0
+          ? data.candidates[data.candidates.length - 1].createdAt
+          : lastTime || new Date().toISOString()
+        setTimeout(() => pollIceCandidates(callId, myType, newTime), 1000)
+      }
+    }).catch(() => {})
+  }
+
+  async function setupCallMediaAsReceiver(call: CallInfo) {
+    if (peerRef.current) return
+    try {
+      const pc = new RTCPeerConnection(RTC_CONFIG)
+      peerRef.current = pc
+
+      // Refetch to get the latest offer in case it wasn't available when fetchCalls captured it
+      const refreshRes = await fetch(`/api/calls/${call.id}`)
+      const refreshData = await refreshRes.json()
+      const latestCall = refreshData.call || call
+
+      const stream = await getMedia(latestCall.isVideo)
+      localStreamRef.current = stream
+      if (localVideoRef.current) localVideoRef.current.srcObject = stream
+
+      stream.getTracks().forEach((track) => pc.addTrack(track, stream))
+
+      pc.ontrack = (event) => {
+        remoteStreamRef.current = event.streams[0]
+        if (remoteVideoRef.current) remoteVideoRef.current.srcObject = event.streams[0]
+      }
+
+      pc.onicecandidate = async (event) => {
+        if (event.candidate) {
+          try {
+            await fetch(`/api/calls/${call.id}/ice-candidates`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                type: call.callerId === userId ? "caller" : "receiver",
+                candidate: JSON.stringify(event.candidate),
+              }),
+            })
+          } catch (e) { console.error("[ICE]", e) }
+        }
+      }
+
+      if (latestCall.offer) {
+        const offer = JSON.parse(latestCall.offer)
+        await pc.setRemoteDescription(new RTCSessionDescription(offer))
+        const answer = await pc.createAnswer()
+        await pc.setLocalDescription(answer)
+
+        if (!latestCall.answer) {
+          await fetch(`/api/calls/${call.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ answer: JSON.stringify(answer) }),
+          })
+        }
+      }
+
+      pollIceCandidates(call.id, call.callerId === userId ? "caller" : "receiver")
+    } catch (e) {
+      console.error("[SETUP_CALL_MEDIA]", e)
+    }
+  }
+
+  async function rejectCall(call: CallInfo) {
+    setIncomingCall(null)
+    try {
+      await fetch(`/api/calls/${call.id}`, {
+        method: "DELETE",
+      })
+    } catch (e) {
+      console.error("[REJECT_CALL]", e)
+    }
+  }
+
+  async function startScreenShare() {
+    if (!peerRef.current) return
+    try {
+      const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true })
+      const screenTrack = screenStream.getVideoTracks()[0]
+
+      screenTrack.onended = () => {
+        stopScreenShare()
+      }
+
+      const sender = peerRef.current.getSenders().find((s) => s.track?.kind === "video")
+      if (sender) {
+        await sender.replaceTrack(screenTrack)
+      }
+
+      screenTrackRef.current = screenTrack
+      setIsSharingScreen(true)
+
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = screenStream
+      }
+    } catch (e) {
+      console.error("[SCREEN_SHARE]", e)
+    }
+  }
+
+  function stopScreenShare() {
+    if (screenTrackRef.current) {
+      screenTrackRef.current.stop()
+      screenTrackRef.current = null
+    }
+    setIsSharingScreen(false)
+
+    if (localStreamRef.current && peerRef.current) {
+      const cameraTrack = localStreamRef.current.getVideoTracks()[0]
+      if (cameraTrack) {
+        const sender = peerRef.current.getSenders().find((s) => s.track?.kind === "video")
+        if (sender) {
+          sender.replaceTrack(cameraTrack)
+        }
+      }
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = localStreamRef.current
+      }
+    }
+  }
+
+  async function endCall() {
+    if (currentCall) {
+      try {
+        await fetch(`/api/calls/${currentCall.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "ended" }),
+        })
+      } catch (e) {
+        console.error("[END_CALL]", e)
+      }
+    }
+    cleanupCall()
+    setCurrentCall(null)
+    setCallDuration(0)
+    callIdRef.current = null
+  }
+
+  function cleanupCall() {
+    if (screenTrackRef.current) {
+      screenTrackRef.current.stop()
+      screenTrackRef.current = null
+    }
+    if (peerRef.current) {
+      peerRef.current.close()
+      peerRef.current = null
+    }
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach((t) => t.stop())
+      localStreamRef.current = null
+    }
+    remoteStreamRef.current = null
+    if (callTimerRef.current) {
+      clearInterval(callTimerRef.current)
+      callTimerRef.current = null
+    }
+  }
+
+  function toggleMute() {
+    if (!localStreamRef.current) return
+    const shouldMute = !isMuted
+    localStreamRef.current.getAudioTracks().forEach((t) => { t.enabled = !shouldMute })
+    setIsMuted(shouldMute)
+  }
+
+  function toggleVideo() {
+    if (!localStreamRef.current) return
+    const shouldOff = !isVideoOff
+    localStreamRef.current.getVideoTracks().forEach((t) => { t.enabled = !shouldOff })
+    setIsVideoOff(shouldOff)
+  }
+
   const teamMembers = members.filter((m) => m.id !== userId)
 
   const filteredMembers = teamMembers
@@ -312,12 +871,15 @@ export function ChatClient({ userId }: { userId: string }) {
       return bTime - aTime
     })
 
+  const groups = chats.filter((c) => c.isGroup)
+  const oneOnOneChats = chats.filter((c) => !c.isGroup)
+
   const selectedChatData = chats.find((c) => c.id === selectedChat)
 
   function lastMessagePreview(msg: ChatInfo["messages"][0]): string {
     if (msg.deletedAt) return "Message deleted"
     if (msg.content) {
-      return msg.sender.id === userId ? `You: ${msg.content}` : msg.content
+      return msg.sender.id === userId ? `You: ${msg.content}` : `${msg.sender.name || "Someone"}: ${msg.content}`
     }
     const attach = (msg as any).attachments?.[0]
     if (attach) {
@@ -331,18 +893,33 @@ export function ChatClient({ userId }: { userId: string }) {
     return msg.senderId === userId
   }
 
+  function toggleGroupMember(memberId: string) {
+    setSelectedGroupMembers((prev) =>
+      prev.includes(memberId) ? prev.filter((id) => id !== memberId) : [...prev, memberId]
+    )
+  }
+
   return (
     <div className="flex h-[calc(100vh-0px)] bg-[#1A1A1A]">
       {/* Sidebar */}
       <div className={`w-full md:w-80 lg:w-96 border-r border-[#262626] flex flex-col ${selectedChat ? "hidden md:flex" : "flex"}`}>
         <div className="p-4 border-b border-[#262626]">
-          <h1 className="text-lg font-bold text-white mb-3">Chats</h1>
+          <div className="flex items-center justify-between mb-3">
+            <h1 className="text-lg font-bold text-white">Chats</h1>
+            <button
+              onClick={() => setGroupModalOpen(true)}
+              className="p-1.5 rounded-xl text-zinc-400 hover:text-white hover:bg-[#262626] transition-colors"
+              title="Create group"
+            >
+              <Users className="h-4 w-4" />
+            </button>
+          </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-500" />
             <input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search team members..."
+              placeholder="Search chats..."
               className="w-full bg-[#1C1C1C] border border-[#262626] rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[#CAFF33]/50 transition-colors"
             />
           </div>
@@ -353,48 +930,98 @@ export function ChatClient({ userId }: { userId: string }) {
             <div className="flex items-center justify-center py-12">
               <LoaderPinwheel className="h-5 w-5 text-zinc-500 animate-spin" />
             </div>
-          ) : filteredMembers.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center px-4">
-              <User className="h-8 w-8 text-zinc-600 mb-3" />
-              <p className="text-sm text-zinc-500">No team members found</p>
-            </div>
           ) : (
-            filteredMembers.map((m) => {
-              const chat = chatForMember(m.id)
-              const last = lastMessageForMember(m.id)
-              return (
-                <motion.button
-                  key={m.id}
-                  whileHover={{ x: 2 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => selectOrStartChat(m.id)}
-                  className={`flex w-full items-center gap-3 px-4 py-3 transition-colors ${
-                    selectedChatData?.participants.some((p) => p.user.id === m.id)
-                      ? "bg-[#CAFF33]/5 border-l-2 border-[#CAFF33]"
-                      : "border-l-2 border-transparent hover:bg-[#1C1C1C]"
-                  }`}
-                >
-                  <div className="h-10 w-10 rounded-full bg-zinc-700 flex items-center justify-center shrink-0 text-sm text-white overflow-hidden">
-                    <AvatarImg src={m.image} name={m.name} size="md" />
-                  </div>
-                  <div className="flex-1 min-w-0 text-left">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-white truncate">{m.name || "Unknown"}</span>
-                      {last && (
-                        <span className="text-[10px] text-zinc-500 shrink-0 ml-2">
-                          {formatTime(last.createdAt)}
-                        </span>
+            <>
+              {/* Groups */}
+              {groups.length > 0 && (
+                <div className="px-4 pt-3 pb-1">
+                  <p className="text-[11px] text-zinc-600 font-medium uppercase tracking-wider">Groups</p>
+                </div>
+              )}
+              {groups.map((g) => {
+                const last = lastMessageForChat(g.id)
+                return (
+                  <motion.button
+                    key={g.id}
+                    whileHover={{ x: 2 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => selectChat(g.id)}
+                    className={`flex w-full items-center gap-3 px-4 py-3 transition-colors ${
+                      selectedChat === g.id
+                        ? "bg-[#CAFF33]/5 border-l-2 border-[#CAFF33]"
+                        : "border-l-2 border-transparent hover:bg-[#1C1C1C]"
+                    }`}
+                  >
+                    {chatAvatar(g)}
+                    <div className="flex-1 min-w-0 text-left">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-white truncate">{chatName(g)}</span>
+                        {last && (
+                          <span className="text-[10px] text-zinc-500 shrink-0 ml-2">
+                            {formatTime(last.createdAt)}
+                          </span>
+                        )}
+                      </div>
+                      {last ? (
+                        <p className="text-xs text-zinc-500 truncate mt-0.5">{lastMessagePreview(last)}</p>
+                      ) : (
+                        <p className="text-xs text-zinc-600 truncate mt-0.5">Group created</p>
                       )}
                     </div>
-                    {last ? (
-                      <p className="text-xs text-zinc-500 truncate mt-0.5">{lastMessagePreview(last)}</p>
-                    ) : (
-                      <p className="text-xs text-zinc-600 truncate mt-0.5">No messages yet</p>
-                    )}
-                  </div>
-                </motion.button>
-              )
-            })
+                  </motion.button>
+                )
+              })}
+
+              {/* Direct Messages */}
+              {filteredMembers.length > 0 && (
+                <div className={`px-4 ${groups.length > 0 ? "pt-2 pb-1" : "pt-3 pb-1"}`}>
+                  <p className="text-[11px] text-zinc-600 font-medium uppercase tracking-wider">Direct Messages</p>
+                </div>
+              )}
+              {filteredMembers.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-center px-4">
+                  <User className="h-8 w-8 text-zinc-600 mb-3" />
+                  <p className="text-sm text-zinc-500">No team members found</p>
+                </div>
+              ) : (
+                filteredMembers.map((m) => {
+                  const chat = chatForMember(m.id)
+                  const last = lastMessageForMember(m.id)
+                  return (
+                    <motion.button
+                      key={m.id}
+                      whileHover={{ x: 2 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => selectOrStartChat(m.id)}
+                      className={`flex w-full items-center gap-3 px-4 py-3 transition-colors ${
+                        chat && selectedChat === chat.id
+                          ? "bg-[#CAFF33]/5 border-l-2 border-[#CAFF33]"
+                          : "border-l-2 border-transparent hover:bg-[#1C1C1C]"
+                      }`}
+                    >
+                      <div className="h-10 w-10 rounded-full bg-zinc-700 flex items-center justify-center shrink-0 text-sm text-white overflow-hidden">
+                        <AvatarImg src={m.image} name={m.name} size="md" />
+                      </div>
+                      <div className="flex-1 min-w-0 text-left">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium text-white truncate">{m.name || "Unknown"}</span>
+                          {last && (
+                            <span className="text-[10px] text-zinc-500 shrink-0 ml-2">
+                              {formatTime(last.createdAt)}
+                            </span>
+                          )}
+                        </div>
+                        {last ? (
+                          <p className="text-xs text-zinc-500 truncate mt-0.5">{lastMessagePreview(last)}</p>
+                        ) : (
+                          <p className="text-xs text-zinc-600 truncate mt-0.5">No messages yet</p>
+                        )}
+                      </div>
+                    </motion.button>
+                  )
+                })
+              )}
+            </>
           )}
         </div>
       </div>
@@ -408,19 +1035,23 @@ export function ChatClient({ userId }: { userId: string }) {
               <Users className="h-3.5 w-3.5" />
               <span>Team Members</span>
             </div>
-            <div ref={memberBarRef} className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
+            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
               {teamMembers.map((m) => {
-                const isActive = selectedChatData?.participants.some((p) => p.user.id === m.id)
+                const memberChat = chatForMember(m.id)
+                const isActive = memberChat && selectedChat === memberChat.id
+                const isOnCall = calls.some((c) =>
+                  (c.status === "ringing" || c.status === "ongoing") && (c.callerId === m.id || c.receiverId === m.id)
+                )
                 return (
                   <button
                     key={m.id}
                     onClick={() => selectOrStartChat(m.id)}
-                    className={`flex flex-col items-center gap-1 shrink-0 px-2 py-1.5 rounded-xl transition-colors ${
+                    className={`flex flex-col items-center gap-1 shrink-0 px-2 py-1.5 rounded-xl transition-colors relative ${
                       isActive ? "bg-[#CAFF33]/10" : "hover:bg-[#1C1C1C]"
                     }`}
                   >
                     <div className={`h-9 w-9 rounded-full flex items-center justify-center text-xs text-white overflow-hidden ${
-                      isActive ? "ring-2 ring-[#CAFF33]" : "bg-zinc-700"
+                      isActive ? "ring-2 ring-[#CAFF33]" : isOnCall ? "ring-2 ring-green-500" : "bg-zinc-700"
                     }`}>
                       <AvatarImg src={m.image} name={m.name} size="md" />
                     </div>
@@ -452,17 +1083,78 @@ export function ChatClient({ userId }: { userId: string }) {
               >
                 <ArrowLeft className="h-5 w-5" />
               </button>
-              <div className="h-9 w-9 rounded-full bg-zinc-700 flex items-center justify-center text-sm text-white overflow-hidden">
-                {selectedChatData && (() => {
-                  const other = otherParticipant(selectedChatData)
-                  return <AvatarImg src={other?.image} name={other?.name} size="sm" />
-                })()}
+              <div className="h-9 w-9 rounded-full bg-zinc-700 flex items-center justify-center text-sm text-white overflow-hidden shrink-0">
+                {selectedChatData?.isGroup ? (
+                  <div className="h-full w-full flex items-center justify-center bg-[#CAFF33]/10">
+                    <Users className="h-4 w-4 text-[#CAFF33]" />
+                  </div>
+                ) : (
+                  (() => {
+                    const other = selectedChatData ? otherParticipant(selectedChatData) : null
+                    return <AvatarImg src={other?.image} name={other?.name} size="sm" />
+                  })()
+                )}
               </div>
-              <div>
-                <p className="text-sm font-medium text-white">
-                  {selectedChatData ? otherParticipant(selectedChatData)?.name || "Unknown" : ""}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-white truncate">
+                  {selectedChatData ? chatName(selectedChatData) : ""}
                 </p>
+                {selectedChatData?.isGroup && (
+                  <p className="text-[11px] text-zinc-500">
+                    {selectedChatData.participants.length} members
+                  </p>
+                )}
               </div>
+              {/* Call buttons */}
+              {selectedChatData && (() => {
+                const isOnCall = calls.some((c) =>
+                  (c.status === "ringing" || c.status === "ongoing")
+                )
+                if (selectedChatData.isGroup) {
+                  return (
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => startGroupCall(false)}
+                        disabled={!!isOnCall}
+                        className="p-2 rounded-xl text-zinc-400 hover:text-[#CAFF33] hover:bg-[#262626] transition-colors disabled:opacity-30"
+                        title="Group voice call"
+                      >
+                        <Phone className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => startGroupCall(true)}
+                        disabled={!!isOnCall}
+                        className="p-2 rounded-xl text-zinc-400 hover:text-[#CAFF33] hover:bg-[#262626] transition-colors disabled:opacity-30"
+                        title="Group video call"
+                      >
+                        <Video className="h-4 w-4" />
+                      </button>
+                    </div>
+                  )
+                }
+                const other = otherParticipant(selectedChatData)
+                if (!other) return null
+                return (
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => startCall(other.id, false)}
+                      disabled={!!isOnCall}
+                      className="p-2 rounded-xl text-zinc-400 hover:text-[#CAFF33] hover:bg-[#262626] transition-colors disabled:opacity-30"
+                      title="Voice call"
+                    >
+                      <Phone className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => startCall(other.id, true)}
+                      disabled={!!isOnCall}
+                      className="p-2 rounded-xl text-zinc-400 hover:text-[#CAFF33] hover:bg-[#262626] transition-colors disabled:opacity-30"
+                      title="Video call"
+                    >
+                      <Video className="h-4 w-4" />
+                    </button>
+                  </div>
+                )
+              })()}
             </div>
 
             {/* Messages */}
@@ -475,6 +1167,7 @@ export function ChatClient({ userId }: { userId: string }) {
                 messages.map((msg) => {
                   const isMe = isOwnMessage(msg)
                   const isDeleted = !!msg.deletedAt
+                  const showSender = selectedChatData?.isGroup && !isMe
 
                   if (isDeleted) {
                     return (
@@ -500,9 +1193,9 @@ export function ChatClient({ userId }: { userId: string }) {
                         </div>
                       )}
 
-                      <div className={`space-y-1 max-w-[75%] ${isMe ? "" : ""}`}>
-                        {/* Sender name */}
-                        {!isMe && msg.sender.name && (
+                      <div className={`space-y-0.5 max-w-[75%] ${isMe ? "" : ""}`}>
+                        {/* Sender name (for groups) */}
+                        {showSender && msg.sender.name && (
                           <p className="text-[11px] text-zinc-500 ml-1">{msg.sender.name}</p>
                         )}
 
@@ -533,21 +1226,18 @@ export function ChatClient({ userId }: { userId: string }) {
                             </div>
                           ) : (
                             <>
-                              {/* Text content */}
                               {msg.content && (
                                 <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{msg.content}</p>
                               )}
 
-                              {/* Attachments */}
                               {msg.attachments?.length > 0 && (
                                 <div className={`space-y-1.5 mt-1.5 ${!msg.content ? "" : ""}`}>
                                   {msg.attachments.map((att) => (
-                                    <AttachmentDisplay key={att.id} attachment={att} />
+                                    <AttachmentDisplay key={att.id} attachment={att} onView={() => setMediaViewer(att)} />
                                   ))}
                                 </div>
                               )}
 
-                              {/* Timestamp row */}
                               <div className={`flex items-center gap-1.5 mt-1 ${isMe ? "justify-end" : "justify-start"}`}>
                                 <span className={`text-[10px] ${isMe ? "text-[#1A1A1A]/60" : "text-zinc-500"}`}>
                                   {formatTime(msg.createdAt)}
@@ -557,7 +1247,6 @@ export function ChatClient({ userId }: { userId: string }) {
                                 )}
                               </div>
 
-                              {/* Context menu trigger (only own messages) */}
                               {isMe && (
                                 <button
                                   onClick={(e) => handleMessageContext(e, msg)}
@@ -571,7 +1260,7 @@ export function ChatClient({ userId }: { userId: string }) {
                         </div>
                       </div>
 
-                      {/* My avatar (right side, shown for own messages) */}
+                      {/* My avatar */}
                       {isMe && (
                         <div className="h-8 w-8 rounded-full bg-zinc-700 flex items-center justify-center shrink-0 mt-1 overflow-hidden text-xs text-white">
                           <AvatarImg src={members.find((m) => m.id === userId)?.image} name="You" size="sm" />
@@ -662,7 +1351,7 @@ export function ChatClient({ userId }: { userId: string }) {
                   ref={fileInputRef}
                   type="file"
                   multiple
-                  accept={ACCEPTED_TYPES}
+                  accept="*/*"
                   className="hidden"
                   onChange={handleFileSelect}
                 />
@@ -691,29 +1380,312 @@ export function ChatClient({ userId }: { userId: string }) {
           </>
         )}
       </div>
+
+      {/* Group Creation Modal */}
+      <AnimatePresence>
+        {groupModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+            onClick={() => setGroupModalOpen(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-[#1C1C1C] border border-[#262626] rounded-2xl w-full max-w-md mx-4 overflow-hidden"
+            >
+              <div className="p-5 border-b border-[#262626]">
+                <h2 className="text-lg font-bold text-white">New Group</h2>
+              </div>
+
+              <div className="p-5 space-y-4">
+                <div>
+                  <label className="block text-xs text-zinc-500 mb-1.5">Group Name</label>
+                  <input
+                    value={groupName}
+                    onChange={(e) => setGroupName(e.target.value)}
+                    placeholder="Enter group name..."
+                    className="w-full bg-[#1A1A1A] border border-[#262626] rounded-xl px-4 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-[#CAFF33]/50 transition-colors"
+                    autoFocus
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs text-zinc-500 mb-1.5">
+                    Select Members ({selectedGroupMembers.length} selected)
+                  </label>
+                  <div className="max-h-48 overflow-y-auto space-y-1">
+                    {teamMembers.map((m) => (
+                      <button
+                        key={m.id}
+                        onClick={() => toggleGroupMember(m.id)}
+                        className={`flex items-center gap-3 w-full px-3 py-2 rounded-xl transition-colors ${
+                          selectedGroupMembers.includes(m.id)
+                            ? "bg-[#CAFF33]/10"
+                            : "hover:bg-[#262626]"
+                        }`}
+                      >
+                        <div className={`h-8 w-8 rounded-full border-2 flex items-center justify-center shrink-0 overflow-hidden ${
+                          selectedGroupMembers.includes(m.id)
+                            ? "border-[#CAFF33] bg-[#CAFF33]/10"
+                            : "border-zinc-600 bg-zinc-800"
+                        }`}>
+                          {selectedGroupMembers.includes(m.id) ? (
+                            <Check className="h-3.5 w-3.5 text-[#CAFF33]" />
+                          ) : (
+                            <AvatarImg src={m.image} name={m.name} size="sm" />
+                          )}
+                        </div>
+                        <span className="text-sm text-zinc-300">{m.name || m.email}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4 border-t border-[#262626] flex justify-end gap-2">
+                <button
+                  onClick={() => { setGroupModalOpen(false); setGroupName(""); setSelectedGroupMembers([]) }}
+                  className="px-4 py-2 text-sm text-zinc-400 hover:text-white transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={createGroup}
+                  disabled={selectedGroupMembers.length < 2 || !groupName.trim()}
+                  className="px-5 py-2 bg-[#CAFF33] text-[#1A1A1A] rounded-xl text-sm font-medium disabled:opacity-30 hover:bg-[#d8ff5c] transition-colors"
+                >
+                  Create Group
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Incoming Call Notification */}
+      <AnimatePresence>
+        {incomingCall && !currentCall && (
+          <motion.div
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 100, opacity: 0 }}
+            className="fixed bottom-6 right-6 z-50 bg-[#1C1C1C] border border-[#262626] rounded-2xl shadow-2xl overflow-hidden w-80"
+          >
+            <div className="p-5">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="h-12 w-12 rounded-full bg-zinc-700 flex items-center justify-center overflow-hidden">
+                  <AvatarImg src={incomingCall.caller.image} name={incomingCall.caller.name} size="md" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-white">{incomingCall.caller.name || "Unknown"}</p>
+                  <p className="text-xs text-zinc-400">
+                    <PhoneIncoming className="h-3 w-3 inline-block mr-1 text-green-400" />
+                    Incoming {incomingCall.isVideo ? "video" : "voice"} call
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => rejectCall(incomingCall)}
+                  className="flex-1 py-2.5 bg-red-500/20 text-red-400 rounded-xl text-sm font-medium hover:bg-red-500/30 transition-colors flex items-center justify-center gap-2"
+                >
+                  <PhoneOff className="h-4 w-4" />
+                  Decline
+                </button>
+                <button
+                  onClick={() => acceptCall(incomingCall)}
+                  className="flex-1 py-2.5 bg-green-500/20 text-green-400 rounded-xl text-sm font-medium hover:bg-green-500/30 transition-colors flex items-center justify-center gap-2"
+                >
+                  <Phone className="h-4 w-4" />
+                  Accept
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Active Call Overlay */}
+      <AnimatePresence>
+        {currentCall && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center"
+          >
+            <div className="relative w-full max-w-4xl mx-4">
+              {/* Remote media */}
+              <div className="rounded-2xl overflow-hidden bg-zinc-900 flex items-center justify-center w-full h-[50vh] md:aspect-video md:h-auto">
+                <video
+                  ref={remoteVideoRef}
+                  autoPlay
+                  playsInline
+                  className={`w-full h-full object-contain ${currentCall.isVideo ? '' : 'sr-only'}`}
+                />
+                {!currentCall.isVideo && (
+                  <div className="text-center">
+                    <div className="h-24 w-24 rounded-full bg-zinc-700 flex items-center justify-center mx-auto mb-4 overflow-hidden">
+                      <AvatarImg
+                        src={currentCall.callerId === userId ? currentCall.receiver.image : currentCall.caller.image}
+                        name={currentCall.callerId === userId ? currentCall.receiver.name : currentCall.caller.name}
+                        size="lg"
+                      />
+                    </div>
+                    <p className="text-xl font-bold text-white">
+                      {currentCall.callerId === userId
+                        ? currentCall.receiver.name || "Unknown"
+                        : currentCall.caller.name || "Unknown"}
+                    </p>
+                    <p className="text-sm text-zinc-400 mt-1">
+                      {currentCall.status === "ringing" ? "Ringing..." : formatDuration(callDuration)}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Local video preview (PIP) */}
+              {(currentCall.isVideo || isSharingScreen) && (
+                <div className="absolute bottom-4 right-4 w-40 aspect-video rounded-xl overflow-hidden border-2 border-zinc-700 bg-zinc-800">
+                  <video
+                    ref={localVideoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              )}
+
+              {/* Controls */}
+              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4">
+                <button
+                  onClick={toggleMute}
+                  className={`p-4 rounded-full transition-colors ${
+                    isMuted ? "bg-red-500/20 text-red-400" : "bg-zinc-800 text-white hover:bg-zinc-700"
+                  }`}
+                >
+                  {isMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
+                </button>
+
+                <button
+                  onClick={endCall}
+                  className="p-4 rounded-full bg-red-500 text-white hover:bg-red-600 transition-colors"
+                >
+                  <PhoneOff className="h-5 w-5" />
+                </button>
+
+                {currentCall.isVideo && (
+                  <button
+                    onClick={toggleVideo}
+                    className={`p-4 rounded-full transition-colors ${
+                      isVideoOff ? "bg-red-500/20 text-red-400" : "bg-zinc-800 text-white hover:bg-zinc-700"
+                    }`}
+                  >
+                    {isVideoOff ? <MonitorOff className="h-5 w-5" /> : <Monitor className="h-5 w-5" />}
+                  </button>
+                )}
+
+                {currentCall.isVideo && (
+                  <button
+                    onClick={isSharingScreen ? stopScreenShare : startScreenShare}
+                    className={`p-4 rounded-full transition-colors ${
+                      isSharingScreen ? "bg-[#CAFF33]/20 text-[#CAFF33]" : "bg-zinc-800 text-white hover:bg-zinc-700"
+                    }`}
+                    title={isSharingScreen ? "Stop sharing screen" : "Share screen"}
+                  >
+                    {isSharingScreen ? <ScreenShareOff className="h-5 w-5" /> : <ScreenShare className="h-5 w-5" />}
+                  </button>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Media Viewer */}
+      <AnimatePresence>
+        {mediaViewer && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4"
+            onClick={() => setMediaViewer(null)}
+          >
+            <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
+              <a
+                href={mediaViewer.data}
+                download={mediaViewer.name}
+                className="p-2 text-white/60 hover:text-white transition-colors"
+                title="Download"
+              >
+                <Download className="h-5 w-5" />
+              </a>
+              <button
+                onClick={() => setMediaViewer(null)}
+                className="p-2 text-white/60 hover:text-white transition-colors"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+            <motion.div
+              key={mediaViewer.id}
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="max-w-full max-h-full"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {isImage(mediaViewer.name) ? (
+                <img
+                  src={mediaViewer.data}
+                  alt={mediaViewer.name}
+                  className="max-w-full max-h-[90vh] object-contain rounded-lg"
+                />
+              ) : isVideo(mediaViewer.name) ? (
+                <video controls autoPlay className="max-w-full max-h-[90vh] rounded-lg" onClick={(e) => e.stopPropagation()}>
+                  <source src={mediaViewer.data} />
+                </video>
+              ) : null}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
 
-function AttachmentDisplay({ attachment }: { attachment: Attachment }) {
+function AttachmentDisplay({ attachment, onView }: { attachment: Attachment; onView?: () => void }) {
   const att = attachment
 
   if (isImage(att.name)) {
     return (
-      <div className="max-w-[260px] rounded-xl overflow-hidden border border-[#262626]">
-        <a href={att.data} target="_blank" rel="noopener noreferrer">
-          <img src={att.data} alt={att.name} className="w-full max-h-64 object-cover" />
-        </a>
+      <div className="max-w-[260px] rounded-xl overflow-hidden border border-[#262626] cursor-pointer" onClick={onView}>
+        <img src={att.data} alt={att.name} className="w-full max-h-64 object-cover" />
       </div>
     )
   }
 
   if (isVideo(att.name)) {
     return (
-      <div className="max-w-[280px] rounded-xl overflow-hidden border border-[#262626]">
-        <video controls className="w-full max-h-64">
+      <div className="max-w-[280px] rounded-xl overflow-hidden border border-[#262626] relative group">
+        <video controls className="w-full max-h-64" onClick={(e) => e.stopPropagation()}>
           <source src={att.data} />
         </video>
+        <button
+          onClick={onView}
+          className="absolute top-2 right-2 h-7 w-7 rounded-full bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+        >
+          <svg className="h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+          </svg>
+        </button>
       </div>
     )
   }

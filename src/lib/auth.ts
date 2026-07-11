@@ -1,54 +1,22 @@
-import NextAuth from "next-auth"
-import type { NextAuthConfig } from "next-auth"
-import Credentials from "next-auth/providers/credentials"
-import { compare } from "bcryptjs"
-import { prisma } from "./db"
+import { createClient } from "./supabase/server"
 
-export const { handlers, signIn, signOut, auth } = NextAuth({
-  secret: process.env.AUTH_SECRET,
-  providers: [
-    Credentials({
-      name: "credentials",
-      credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" },
-      },
-      async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null
+export async function getSession() {
+  const supabase = await createClient()
+  const { data: { session } } = await supabase.auth.getSession()
 
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email as string },
-        })
+  if (!session) return null
 
-        if (!user || !user.passwordHash) return null
-
-        const isValid = await compare(
-          credentials.password as string,
-          user.passwordHash
-        )
-
-        if (!isValid) return null
-
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-        }
-      },
-    }),
-  ],
-  session: { strategy: "jwt" },
-  pages: { signIn: "/login" },
-  callbacks: {
-    async jwt({ token, user }) {
-      if (user) token.id = user.id
-      delete token.picture
-      return token
+  return {
+    user: {
+      id: session.user.id,
+      name: session.user.user_metadata?.name ?? session.user.email?.split("@")[0] ?? null,
+      email: session.user.email ?? null,
+      image: session.user.user_metadata?.avatar_url ?? session.user.user_metadata?.picture ?? null,
     },
-    async session({ session, token }) {
-      if (session.user && token.id) session.user.id = token.id as string
-      else if (session.user) delete (session.user as any).id
-      return session
-    },
-  },
-})
+  }
+}
+
+export async function getUser() {
+  const session = await getSession()
+  return session?.user ?? null
+}

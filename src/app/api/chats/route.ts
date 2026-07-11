@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
+import { getSession } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { getOrCreateOrg } from "@/lib/org"
 
 export async function GET() {
   try {
-    const session = await auth()
+    const session = await getSession()
     if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
     const membership = await getOrCreateOrg(session.user.id, session.user.name, session.user.email)
@@ -36,12 +36,38 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const session = await auth()
+    const session = await getSession()
     if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
     const membership = await getOrCreateOrg(session.user.id, session.user.name, session.user.email)
+    const body = await req.json()
 
-    const { participantId } = await req.json()
+    // Group chat creation
+    if (body.participantIds) {
+      const userIds = [session.user.id, ...body.participantIds]
+      if (userIds.length < 3) return NextResponse.json({ error: "Group needs at least 3 participants" }, { status: 400 })
+
+      const chat = await prisma.chat.create({
+        data: {
+          name: body.name || "Group",
+          isGroup: true,
+          organizationId: membership.organization.id,
+          participants: {
+            createMany: { data: userIds.map((uid: string) => ({ userId: uid })) },
+          },
+        },
+        include: {
+          participants: {
+            include: { user: { select: { id: true, name: true, image: true, email: true } } },
+          },
+        },
+      })
+
+      return NextResponse.json({ chat })
+    }
+
+    // 1-on-1 chat
+    const { participantId } = body
     if (!participantId) return NextResponse.json({ error: "participantId required" }, { status: 400 })
 
     const existing = await prisma.chat.findFirst({

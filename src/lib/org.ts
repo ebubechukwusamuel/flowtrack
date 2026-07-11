@@ -1,11 +1,18 @@
 import { prisma } from "./db"
 
 export async function getOrCreateOrg(userId: string, userName?: string | null, userEmail?: string | null) {
-  const existing = await prisma.organizationMember.findFirst({
+  const memberships = await prisma.organizationMember.findMany({
     where: { userId },
-    include: { organization: true },
+    include: { organization: { include: { members: true } } },
+    orderBy: { createdAt: "asc" },
   })
-  if (existing) return existing
+
+  // Prefer the org with the most members (shared team org over personal)
+  const best = memberships.reduce((best, m) => {
+    return (!best || m.organization.members.length > best.organization.members.length) ? m : best
+  }, null as typeof memberships[0] | null)
+
+  if (best) return best
 
   const name = userName || userEmail?.split("@")[0] || "My Team"
   const slug = (userEmail?.split("@")[0] || `team-${userId.slice(0, 8)}`)

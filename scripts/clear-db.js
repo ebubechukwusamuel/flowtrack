@@ -19,17 +19,18 @@ async function safeDelete(prisma, name, fn) {
 
 async function main() {
   const url = process.env.DATABASE_URL || ""
-  console.log(`Database: ${url.includes("neon") ? "NEON" : "OTHER"}`)
+  console.log(`Database: ${url.includes("supabase") ? "SUPABASE" : "OTHER"}`)
 
-  let prisma
-  try {
-    const { PrismaNeon } = require("@prisma/adapter-neon")
-    prisma = new PrismaClient({ adapter: new PrismaNeon({ connectionString: url }) })
-  } catch {
-    prisma = new PrismaClient()
-  }
+  const prisma = new PrismaClient()
 
   console.log("Clearing all tables...\n")
+  await safeDelete(prisma, "CallICECandidate", () => prisma.callICECandidate.deleteMany())
+  await safeDelete(prisma, "Call", () => prisma.call.deleteMany())
+  await safeDelete(prisma, "MessageAttachment", () => prisma.messageAttachment.deleteMany())
+  await safeDelete(prisma, "Message", () => prisma.message.deleteMany())
+  await safeDelete(prisma, "ChatParticipant", () => prisma.chatParticipant.deleteMany())
+  await safeDelete(prisma, "Chat", () => prisma.chat.deleteMany())
+  await safeDelete(prisma, "Notification", () => prisma.notification.deleteMany())
   await safeDelete(prisma, "Activity", () => prisma.activity.deleteMany())
   await safeDelete(prisma, "Task", () => prisma.task.deleteMany())
   await safeDelete(prisma, "EmailLog", () => prisma.emailLog.deleteMany())
@@ -38,9 +39,6 @@ async function main() {
   await safeDelete(prisma, "Project", () => prisma.project.deleteMany())
   await safeDelete(prisma, "OrganizationMember", () => prisma.organizationMember.deleteMany())
   await safeDelete(prisma, "Organization", () => prisma.organization.deleteMany())
-  await safeDelete(prisma, "Session", () => prisma.session.deleteMany())
-  await safeDelete(prisma, "Account", () => prisma.account.deleteMany())
-  await safeDelete(prisma, "VerificationToken", () => prisma.verificationToken.deleteMany())
   await safeDelete(prisma, "User", () => prisma.user.deleteMany())
 
   console.log("\nDone!")

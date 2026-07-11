@@ -1,10 +1,17 @@
 import { PrismaClient } from "@/generated/prisma"
-import { PrismaNeon } from "@prisma/adapter-neon"
 
-const globalForPrisma = globalThis as unknown as { prisma: PrismaClient }
+function getPrisma() {
+  const globalForPrisma = globalThis as unknown as { _prisma?: PrismaClient }
+  if (!globalForPrisma._prisma) {
+    globalForPrisma._prisma = new PrismaClient()
+  }
+  return globalForPrisma._prisma
+}
 
-export const prisma = globalForPrisma.prisma ?? new PrismaClient({
-  adapter: new PrismaNeon({ connectionString: process.env.DATABASE_URL }),
+export const prisma = new Proxy({} as PrismaClient, {
+  get(_, prop) {
+    const client = getPrisma()
+    const value = (client as any)[prop]
+    return typeof value === "function" ? value.bind(client) : value
+  },
 })
-
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma

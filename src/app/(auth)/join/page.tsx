@@ -4,7 +4,8 @@ import { useState, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { motion } from "framer-motion"
-import { UserPlus, KeyRound, ArrowRight, Building2 } from "lucide-react"
+import { UserPlus, KeyRound, Building2 } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
 
 function JoinForm() {
   const router = useRouter()
@@ -24,16 +25,15 @@ function JoinForm() {
     setLoading(true)
     setError("")
 
-    const res = await fetch("/api/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, email, password, token: inviteToken.trim() }),
+    const supabase = createClient()
+    const { error: signUpError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { name } },
     })
 
-    const data = await res.json()
-
-    if (!res.ok) {
-      setError(data.error || "Something went wrong")
+    if (signUpError) {
+      setError(signUpError.message || "Something went wrong")
       setLoading(false)
       return
     }

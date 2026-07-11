@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
+import { getSession } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { getOrCreateOrg } from "@/lib/org"
 import { sendEmail, buildInviteEmailHtml } from "@/lib/mail"
@@ -8,7 +8,7 @@ import crypto from "node:crypto"
 
 export async function POST(req: Request) {
   try {
-    const session = await auth()
+    const session = await getSession()
     if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
     const membership = await getOrCreateOrg(session.user.id, session.user.name, session.user.email)

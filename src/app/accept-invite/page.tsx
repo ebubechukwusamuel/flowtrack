@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth"
+import { getSession } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/db"
 import { AcceptInviteClient } from "@/components/accept-invite-client"
@@ -35,7 +35,7 @@ export default async function AcceptInvitePage({
     return <div className="flex items-center justify-center min-h-screen"><p className="text-red-500">This invite has expired</p></div>
   }
 
-  const session = await auth()
+  const session = await getSession()
 
   return (
     <AcceptInviteClient

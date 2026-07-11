@@ -1,11 +1,11 @@
-import { auth } from "@/lib/auth"
+import { getSession } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/db"
 import { getOrCreateOrg } from "@/lib/org"
 import { DashboardClient } from "@/components/dashboard-client"
 
 export default async function DashboardPage() {
-  const session = await auth()
+  const session = await getSession()
   if (!session?.user?.id) redirect("/login")
 
   const userId = session.user.id

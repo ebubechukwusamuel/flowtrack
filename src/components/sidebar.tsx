@@ -2,8 +2,8 @@
 
 import Link from "next/link"
 import { usePathname, useSearchParams } from "next/navigation"
-import { signOut } from "next-auth/react"
 import { motion, AnimatePresence } from "framer-motion"
+import { createClient } from "@/lib/supabase/client"
 import {
   LayoutDashboard,
   FolderKanban,
@@ -295,7 +295,7 @@ export function Sidebar({
 
         {/* Sign out */}
         <motion.button
-          onClick={() => signOut()}
+          onClick={() => createClient().auth.signOut()}
           whileHover={{ x: collapsed ? 0 : 2 }}
           whileTap={{ scale: 0.97 }}
           className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-red-600 dark:hover:bg-zinc-800"

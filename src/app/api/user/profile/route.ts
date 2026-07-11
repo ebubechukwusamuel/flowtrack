@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
+import { getSession } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 
 export async function PATCH(req: Request) {
-  const session = await auth()
+  const session = await getSession()
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const { name, bio, jobTitle, timezone, notifyOnAssign } = await req.json()
@@ -24,7 +24,7 @@ export async function PATCH(req: Request) {
 }
 
 export async function GET() {
-  const session = await auth()
+  const session = await getSession()
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const user = await prisma.user.findUnique({

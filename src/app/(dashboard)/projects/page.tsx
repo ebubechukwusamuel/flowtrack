@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth"
+import { getSession } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { redirect } from "next/navigation"
 import { getOrCreateOrg } from "@/lib/org"
@@ -6,7 +6,7 @@ import Link from "next/link"
 import { Plus, FolderKanban } from "lucide-react"
 
 export default async function ProjectsPage() {
-  const session = await auth()
+  const session = await getSession()
   if (!session?.user?.id) redirect("/login")
 
   const membership = await getOrCreateOrg(session.user.id, session.user.name, session.user.email)
