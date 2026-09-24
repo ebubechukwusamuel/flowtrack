@@ -1,6 +1,15 @@
 import { prisma } from "./db"
 
 export async function getOrCreateOrg(userId: string, userName?: string | null, userEmail?: string | null) {
+  await prisma.user.upsert({
+    where: { id: userId },
+    update: {
+      ...(userName ? { name: userName } : {}),
+      ...(userEmail ? { email: userEmail } : {}),
+    },
+    create: { id: userId, name: userName ?? null, email: userEmail ?? null },
+  })
+
   const memberships = await prisma.organizationMember.findMany({
     where: { userId },
     include: { organization: { include: { members: true } } },
