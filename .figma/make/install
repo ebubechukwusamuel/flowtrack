@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+export DATABASE_URL="${DATABASE_URL:-postgresql://figma_preview:figma_preview@127.0.0.1:5432/figma_preview}"
+npm ci
+npx prisma generate

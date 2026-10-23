@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+export FIGMA=1
+export FIGMA_PREVIEW=1
+export NEXT_TELEMETRY_DISABLED=1
+export DATABASE_URL="${DATABASE_URL:-postgresql://figma_preview:figma_preview@127.0.0.1:5432/figma_preview}"
+export NEXT_PUBLIC_SUPABASE_URL="${NEXT_PUBLIC_SUPABASE_URL:-https://figma-preview.supabase.co}"
+export NEXT_PUBLIC_SUPABASE_ANON_KEY="${NEXT_PUBLIC_SUPABASE_ANON_KEY:-figma-preview-no-auth-key}"
+
+: "${PORT:?Figma Make must provide PORT}"
+exec npm run dev -- --hostname "${FIGMA_DEV_SERVER_HOST:-0.0.0.0}" --port "$PORT"
